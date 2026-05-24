@@ -141,7 +141,8 @@ ssh root@YOUR_VPS_IP
 Run this single command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
+curl -sSLO https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh
+sudo bash install-exit.sh
 ```
 
 It will:
