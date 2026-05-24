@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Joob Exit Node — one-line installer
-# Usage: curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | bash
+# Joob Server — one-line installer + setup
+# Usage: curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | sudo bash
 set -euo pipefail
 
 REPO="zakrad/joob"
@@ -14,7 +14,7 @@ case "$ARCH" in
 esac
 INSTALL_DIR="/usr/local/bin"
 SERVICE_NAME="joob"
-WORK_DIR="$HOME/joob"
+WORK_DIR="/root/joob"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,18 +31,18 @@ command -v curl &>/dev/null || error "curl is required"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║     JOOB EXIT NODE — QUICK INSTALL       ║"
+echo "║        JOOB SERVER — INSTALLER           ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
 # ── Step 1: Get latest release ──────────────────────────────────────
-info "[1/4] Finding latest release..."
+info "[1/5] Finding latest release..."
 
 LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [[ -z "$LATEST" ]]; then
-    warn "Could not find latest release, using 'master' branch."
+    warn "Could not find latest release, using 'latest' fallback."
     DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY}"
 else
     info "  Latest version: ${LATEST}"
@@ -50,7 +50,7 @@ else
 fi
 
 # ── Step 2: Download binary ─────────────────────────────────────────
-info "[2/4] Downloading joob-server..."
+info "[2/5] Downloading joob-server..."
 
 curl -fsSL -o /tmp/joob-server "$DOWNLOAD_URL" || error "Download failed. Is there a release at ${DOWNLOAD_URL}?"
 chmod +x /tmp/joob-server
@@ -58,15 +58,15 @@ mv /tmp/joob-server "${INSTALL_DIR}/joob-server"
 info "  Installed to ${INSTALL_DIR}/joob-server"
 
 # ── Step 3: Create working directory ────────────────────────────────
-info "[3/4] Setting up working directory..."
+info "[3/5] Setting up working directory..."
 mkdir -p "$WORK_DIR"
 
 # ── Step 4: Create systemd service ──────────────────────────────────
-info "[4/4] Installing systemd service..."
+info "[4/5] Installing systemd service..."
 
 cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
-Description=Joob Exit Tunnel
+Description=Joob Tunnel Server
 After=network-online.target
 Wants=network-online.target
 
@@ -86,23 +86,28 @@ EOF
 systemctl daemon-reload
 systemctl enable ${SERVICE_NAME}
 
-# ── Step 5: Run setup ───────────────────────────────────────────────
+# ── Step 5: Run setup wizard ────────────────────────────────────────
+info "[5/5] Starting setup wizard..."
+echo ""
+
+cd "$WORK_DIR"
+joob-server setup </dev/tty
+
+# ── Start service ───────────────────────────────────────────────────
+echo ""
+info "Starting joob service..."
+systemctl start ${SERVICE_NAME}
+
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║        INSTALL COMPLETE ✓                 ║"
+echo "║        ALL DONE ✓                        ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
-echo "║  Now run the setup wizard:               ║"
+echo "║  Joob server is running!                 ║"
 echo "║                                          ║"
-echo "║  cd ~/joob && joob-server setup            ║"
-echo "║                                          ║"
-echo "║  You need a Google OAuth Client ID.      ║"
-echo "║  Create one at:                          ║"
-echo "║  console.cloud.google.com/apis/credentials║"
-echo "║  Type: Desktop app                       ║"
-echo "║                                          ║"
-echo "║  After setup, start the service:         ║"
-echo "║  systemctl start joob                    ║"
+echo "║  Check status:  systemctl status joob    ║"
+echo "║  View logs:     journalctl -u joob -f    ║"
+echo "║  Restart:       systemctl restart joob   ║"
 echo "║                                          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""

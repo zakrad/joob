@@ -60,23 +60,13 @@ SSH into any Linux VPS and run:
 curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | sudo bash
 ```
 
-This downloads a pre-built binary (~30 seconds, no compilation needed).
+This will:
+1. Download the pre-built binary (~30 seconds, no compilation)
+2. Install the systemd service
+3. Run the setup wizard (asks for your Client ID, opens Google auth)
+4. Start the server automatically
 
-Then run the setup wizard:
-
-```bash
-cd ~/joob && joob-server setup
-```
-
-It will:
-1. Ask for your Client ID
-2. Print a Google authorization URL — open it in any browser, authorize, then paste the redirect URL back
-3. Create a Drive folder and generate a `joob://...` profile string — **copy it**
-
-Start the service:
-```bash
-systemctl start joob
-```
+At the end it prints a `joob://...` profile string — **copy it** for the client.
 
 ### 2. Client Setup
 
