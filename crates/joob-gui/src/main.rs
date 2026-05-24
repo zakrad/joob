@@ -277,7 +277,7 @@ impl eframe::App for JoobApp {
                 ui.add_space(16.0);
 
                 // Title
-                ui.heading(egui::RichText::new("جوب  —  Joob").size(28.0));
+                ui.heading(egui::RichText::new("Joob").size(28.0));
                 ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new("Tunnel over Google Drive")
