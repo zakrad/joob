@@ -159,6 +159,39 @@ Pre-built binaries for every release:
 
 Download from [Releases](https://github.com/zakrad/joob/releases).
 
+## Heavily-blocked networks (e.g. Iran)
+
+If Google's edge IPs are TCP-blocked from your network (every connection to
+`googleapis.com` times out), the default domain-fronting mode cannot work.
+Deploy the included Cloudflare Worker frontend and route the client through
+it:
+
+1. Deploy the Worker (one-time, ~2 minutes, free):
+
+   ```bash
+   cd worker
+   npm install -g wrangler
+   wrangler login
+   wrangler deploy
+   ```
+
+   This prints a URL like `https://joob-drive.<your-subdomain>.workers.dev`.
+   See [`worker/README.md`](worker/README.md) for details and optional
+   shared-secret auth.
+
+2. Regenerate the client profile with the Worker URL embedded:
+
+   ```bash
+   joob-server setup ... \
+     --drive-frontend-url https://joob-drive.<your-subdomain>.workers.dev
+   # add --drive-frontend-auth <secret> if you set WORKER_AUTH_TOKEN
+   ```
+
+3. Import the new profile on the client. The client will now route all
+   Google API traffic via Cloudflare instead of connecting to Google IPs
+   directly. Existing profiles without the field continue to use the
+   legacy direct mode.
+
 ## VPS Management
 
 ```bash

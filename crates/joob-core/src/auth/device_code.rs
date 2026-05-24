@@ -77,11 +77,36 @@ pub enum AuthError {
 pub struct DeviceCodeFlow {
     config: OAuthConfig,
     http: reqwest::Client,
+    device_code_url: String,
+    token_url: String,
 }
 
 impl DeviceCodeFlow {
     pub fn new(config: OAuthConfig, http: reqwest::Client) -> Self {
-        Self { config, http }
+        Self {
+            config,
+            http,
+            device_code_url: GOOGLE_DEVICE_CODE_URL.to_string(),
+            token_url: GOOGLE_TOKEN_URL.to_string(),
+        }
+    }
+
+    /// Construct a `DeviceCodeFlow` that routes OAuth endpoints through a
+    /// Cloudflare Worker frontend. The Worker is expected to map
+    /// `/device/code` → `oauth2.googleapis.com/device/code` and
+    /// `/token` → `oauth2.googleapis.com/token`.
+    pub fn with_frontend(
+        config: OAuthConfig,
+        http: reqwest::Client,
+        frontend_base_url: &str,
+    ) -> Self {
+        let base = frontend_base_url.trim_end_matches('/');
+        Self {
+            config,
+            http,
+            device_code_url: format!("{}/device/code", base),
+            token_url: format!("{}/token", base),
+        }
     }
 
     /// Start the device-code authorization flow.
@@ -94,7 +119,7 @@ impl DeviceCodeFlow {
         // Step 1: Request device code
         let raw = self
             .http
-            .post(GOOGLE_DEVICE_CODE_URL)
+            .post(&self.device_code_url)
             .form(&[
                 ("client_id", self.config.client_id.as_str()),
                 ("scope", DRIVE_FILE_SCOPE),
@@ -152,7 +177,7 @@ impl DeviceCodeFlow {
             // Reborrow params for the form data
             let token_resp = self
                 .http
-                .post(GOOGLE_TOKEN_URL)
+                .post(&self.token_url)
                 .form(&params)
                 .send()
                 .await?
@@ -211,7 +236,7 @@ impl DeviceCodeFlow {
         }
         let resp = self
             .http
-            .post(GOOGLE_TOKEN_URL)
+            .post(&self.token_url)
             .form(&params)
             .send()
             .await?;

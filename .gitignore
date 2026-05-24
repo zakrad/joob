@@ -5,3 +5,11 @@ exit.json
 client.json
 *_token.json
 *.log
+
+# Local cross-compile linker config (Mac → Windows MinGW)
+/.cargo/
+
+# Worker / Node
+worker/node_modules/
+worker/.wrangler/
+worker/.dev.vars

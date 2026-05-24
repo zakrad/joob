@@ -35,6 +35,16 @@ enum Commands {
         /// Google edge IP for domain fronting (client-side)
         #[arg(long, default_value = "216.239.38.120")]
         google_ip: String,
+        /// Optional Cloudflare Worker frontend URL embedded in the client profile.
+        /// When set, the client routes Google API traffic through this Worker
+        /// instead of connecting to Google IPs directly (use when Google edge
+        /// IPs are TCP-blocked by the client's ISP).
+        /// Example: https://joob-drive.example.workers.dev
+        #[arg(long)]
+        drive_frontend_url: Option<String>,
+        /// Optional shared secret sent as `X-Joob-Auth` to the Worker.
+        #[arg(long)]
+        drive_frontend_auth: Option<String>,
     },
     /// Start exit tunnel daemon
     Run {
@@ -71,8 +81,18 @@ async fn main() -> anyhow::Result<()> {
             client_secret,
             oauth_flow,
             google_ip,
+            drive_frontend_url,
+            drive_frontend_auth,
         } => {
-            run_setup(client_id, client_secret, &oauth_flow, google_ip).await?;
+            run_setup(
+                client_id,
+                client_secret,
+                &oauth_flow,
+                google_ip,
+                drive_frontend_url,
+                drive_frontend_auth,
+            )
+            .await?;
         }
         Commands::Run { config } => {
             let exit_config = ExitConfig::load_from_file(&config).map_err(boxerr)?;
@@ -96,6 +116,8 @@ async fn run_setup(
     client_secret: Option<String>,
     oauth_flow: &str,
     google_ip: String,
+    drive_frontend_url: Option<String>,
+    drive_frontend_auth: Option<String>,
 ) -> anyhow::Result<()> {
     println!("╔══════════════════════════════════════════╗");
     println!("║          JOOB EXIT SETUP                 ║");
@@ -194,6 +216,10 @@ async fn run_setup(
     println!("\nStep 4/4: Config saved to exit.json");
 
     // Generate client profile
+    let drive_frontend = drive_frontend_url.map(|url| joob_core::config::DriveFrontend {
+        base_url: url.trim_end_matches('/').to_string(),
+        auth_token: drive_frontend_auth,
+    });
     let client_config = ClientConfig {
         tunnel_secret: tunnel_secret.clone(),
         drive_folder_id: folder_id,
@@ -205,6 +231,7 @@ async fn run_setup(
             client_secret: oauth_config.client_secret,
             refresh_token: token.refresh_token,
         },
+        drive_frontend,
     };
     let profile = Profile::encode(&client_config);
 
