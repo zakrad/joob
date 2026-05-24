@@ -90,7 +90,7 @@ impl DeviceCodeFlow {
     /// Returns `TokenData` with access_token, refresh_token, and expiry.
     pub async fn authorize(&self) -> Result<TokenData, AuthError> {
         // Step 1: Request device code
-        let resp = self
+        let raw = self
             .http
             .post(GOOGLE_DEVICE_CODE_URL)
             .form(&[
@@ -98,9 +98,24 @@ impl DeviceCodeFlow {
                 ("scope", DRIVE_FILE_SCOPE),
             ])
             .send()
-            .await?
-            .json::<DeviceCodeResponse>()
             .await?;
+
+        let status = raw.status();
+        let body = raw.text().await?;
+
+        if !status.is_success() {
+            return Err(AuthError::Unexpected(format!(
+                "Google device-code request failed (HTTP {}): {}",
+                status, body
+            )));
+        }
+
+        let resp: DeviceCodeResponse = serde_json::from_str(&body).map_err(|e| {
+            AuthError::Unexpected(format!(
+                "Failed to parse device-code response: {}. Body: {}",
+                e, body
+            ))
+        })?;
 
         println!("\n╔══════════════════════════════════════════╗");
         println!("║         GOOGLE AUTHORIZATION             ║");
