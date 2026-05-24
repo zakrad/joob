@@ -13,7 +13,7 @@ fn boxerr(e: Box<dyn std::error::Error>) -> anyhow::Error {
 }
 
 #[derive(Parser)]
-#[command(name = "joob-exit", version, about = "Joob tunnel exit node — runs on your VPS")]
+#[command(name = "joob-server", version, about = "Joob tunnel server — runs on your VPS")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -204,7 +204,7 @@ async fn run_setup(
     println!("║                                          ║");
     println!("╚══════════════════════════════════════════╝\n");
     println!("{}\n", profile);
-    println!("Run the exit node:  joob-exit run");
+    println!("Run the server:  joob-server run");
     println!(
         "Connect from client: joob-client connect --profile \"{}...\"",
         &profile[..50.min(profile.len())]
@@ -236,6 +236,6 @@ async fn run_cleanup(config_path: &str) -> anyhow::Result<()> {
 async fn run_revoke() -> anyhow::Result<()> {
     let token_store = TokenStore::new("exit_token.json".into());
     token_store.clear().await?;
-    println!("Token revoked. Run 'joob-exit setup' to re-authenticate.");
+    println!("Token revoked. Run 'joob-server setup' to re-authenticate.");
     Ok(())
 }

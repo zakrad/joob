@@ -1798,20 +1798,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "joob-exit"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "clap",
- "joob-core",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "joob-gui"
 version = "0.1.0"
 dependencies = [
@@ -1828,6 +1814,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "winapi",
+]
+
+[[package]]
+name = "joob-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "clap",
+ "joob-core",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

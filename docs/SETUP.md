@@ -21,7 +21,7 @@
 
 ```
 YOUR PC (restricted network)        YOUR VPS (free internet)
-  Browser                             joob-exit
+  Browser                             joob-server
     ↓                                   ↓
   joob-client                      dials websites
   (local proxy)                    on your behalf
@@ -31,7 +31,7 @@ YOUR PC (restricted network)        YOUR VPS (free internet)
            normal Google Drive sync)
 ```
 
-You run `joob-exit` on a VPS, `joob-client` (or the GUI app) on your PC. All traffic looks like Google Drive file syncing to anyone watching your network.
+You run `joob-server` on a VPS, `joob-client` (or the GUI app) on your PC. All traffic looks like Google Drive file syncing to anyone watching your network.
 
 ---
 
@@ -112,7 +112,7 @@ This downloads a pre-built binary (~30 seconds). **No Rust, no compilation, no b
 
 ```bash
 cd ~/joob
-joob-exit setup
+joob-server setup
 ```
 
 It will:
@@ -289,7 +289,7 @@ ssh root@VPS_IP "systemctl status joob"
 ssh root@VPS_IP "journalctl -u joob --no-pager -n 50"
 
 # Clean up old Drive files (do this weekly):
-ssh root@VPS_IP "joob-exit cleanup"
+ssh root@VPS_IP "joob-server cleanup"
 
 # Restart:
 ssh root@VPS_IP "systemctl restart joob"
@@ -304,7 +304,7 @@ If the default PKCE flow doesn't work, you can use the device-code flow instead:
 3. Run setup with:
 
 ```bash
-joob-exit setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET" --oauth-flow device
+joob-server setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET" --oauth-flow device
 ```
 
 ---
@@ -313,7 +313,7 @@ joob-exit setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET" --oauth-flow
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "token refresh failed" | Token expired or revoked | On VPS: `joob-exit revoke` then `joob-exit setup` |
+| "token refresh failed" | Token expired or revoked | On VPS: `joob-server revoke` then `joob-server setup` |
 | Can't reach `httpbin.org/ip` through proxy | Client not connected | Make sure `joob-client connect` is running |
 | IP check shows your real IP | Browser not using proxy | Check proxy settings (Step 4) |
 | Very slow browsing | Normal — Drive API has latency | Try off-peak hours, or lower video quality |

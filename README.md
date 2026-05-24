@@ -9,7 +9,7 @@ A high-throughput TCP tunnel that routes all traffic through Google Drive API. F
 ```
 Client (restricted network)           VPS Exit (free internet)
 ┌──────────────┐                     ┌──────────────┐
-│  joob-client │                     │  joob-exit   │
+│  joob-client │                     │  joob-server  │
 │              │                     │              │
 │  SOCKS5 :1080│                     │  TCP dialer  │
 │  HTTP   :8080│                     │  → internet  │
@@ -65,7 +65,7 @@ This downloads a pre-built binary (~30 seconds, no compilation needed).
 Then run the setup wizard:
 
 ```bash
-cd ~/joob && joob-exit setup
+cd ~/joob && joob-server setup
 ```
 
 It will:
@@ -160,7 +160,7 @@ Pre-built binaries for every release:
 
 | Platform | Binary | Description |
 |----------|--------|-------------|
-| Linux x64 | `joob-exit-linux-amd64` | Exit node for VPS |
+| Linux x64 | `joob-server-linux-amd64` | Server for VPS |
 | Linux x64 | `joob-client-linux-amd64` | CLI client |
 | Windows x64 | `joob-windows-amd64.exe` | Desktop GUI app |
 | Windows x64 | `joob-client-windows-amd64.exe` | CLI client |
@@ -177,7 +177,7 @@ systemctl status joob
 journalctl -u joob --no-pager -n 50
 
 # Clean up old Drive files (do weekly):
-joob-exit cleanup
+joob-server cleanup
 
 # Restart:
 systemctl restart joob
@@ -187,7 +187,7 @@ systemctl restart joob
 
 | Issue | Solution |
 |-------|----------|
-| "Token refresh failed" | Run `joob-exit revoke` then `joob-exit setup` |
+| "Token refresh failed" | Run `joob-server revoke` then `joob-server setup` |
 | Slow speed | Normal — Drive API has latency. Lower video quality |
 | "Rate limited" | Wait 1 min, auto-recovers |
 | Connection drops | `systemctl restart joob` on VPS |
@@ -201,7 +201,7 @@ systemctl restart joob
 cargo build --release
 
 # Binaries in target/release/
-# joob-exit, joob-client, joob (GUI)
+# joob-server, joob-client, joob (GUI)
 ```
 
 ## Disclaimer
