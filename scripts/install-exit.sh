@@ -31,17 +31,15 @@ echo ""
 
 # Install build dependencies
 echo "[1/6] Installing build dependencies..."
-apt-get update -qq
-apt-get install -y -qq git build-essential pkg-config libssl-dev > /dev/null 2>&1
+apt-get update -q
+apt-get install -y git build-essential pkg-config libssl-dev
 
 # Install Rust if not present
 if ! command -v cargo &> /dev/null; then
     echo "[2/6] Installing Rust..."
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
-else
-    echo "[2/6] Rust already installed."
 fi
+export PATH="$HOME/.cargo/bin:$PATH"
 
 # Clone and build
 if [ ! -d "$HOME/joob" ]; then
