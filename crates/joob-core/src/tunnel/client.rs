@@ -40,10 +40,14 @@ impl ClientTunnel {
 
         let token_store = Arc::new(TokenStore::new(dirs_config_path("client_token.json")));
 
-        // Check if we need to login
-        if token_store.needs_refresh(0).await {
+        // Use the refresh token from the profile to get/refresh the access token
+        if token_store.needs_refresh(60).await {
+            info!("Refreshing access token...");
             let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
-            let token = flow.authorize().await?;
+            let token = flow
+                .refresh_token(&config.oauth.refresh_token)
+                .await
+                .map_err(|e| format!("Token refresh failed: {}. Re-run setup on the server to get a new profile.", e))?;
             token_store.store(token).await?;
         }
 
