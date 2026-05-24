@@ -1,0 +1,7 @@
+/target
+*.exe
+*.pdb
+exit.json
+client.json
+*_token.json
+*.log

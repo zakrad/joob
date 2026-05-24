@@ -1,0 +1,28 @@
+[package]
+name = "joob-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+rustls = "0.23"
+tokio-rustls = "0.26"
+webpki-roots = "0.26"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+tracing = "0.1"
+bytes = "1"
+tokio-util = { version = "0.7", features = ["codec"] }
+thiserror = "2"
+url = "2"
+hkdf = "0.12"
+sha2 = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util", "macros"] }
+tempfile = "3"
