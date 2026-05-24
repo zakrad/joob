@@ -57,7 +57,7 @@ Client (restricted network)           VPS Exit (free internet)
 SSH into any Linux VPS and run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | sudo bash
 ```
 
 This downloads a pre-built binary (~30 seconds, no compilation needed).

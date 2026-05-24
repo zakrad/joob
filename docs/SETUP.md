@@ -103,7 +103,7 @@ Requirements: Linux, 512MB RAM, internet access. That's it.
 SSH into your VPS and run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | sudo bash
 ```
 
 This downloads a pre-built binary (~30 seconds). **No Rust, no compilation, no build tools.**
