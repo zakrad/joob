@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO="zakrad/joob"
-BINARY="joob-exit-linux-amd64"
+BINARY="joob-server-linux-amd64"
 INSTALL_DIR="/usr/local/bin"
 SERVICE_NAME="joob"
 WORK_DIR="$HOME/joob"
@@ -43,12 +43,12 @@ else
 fi
 
 # ── Step 2: Download binary ─────────────────────────────────────────
-info "[2/4] Downloading joob-exit..."
+info "[2/4] Downloading joob-server..."
 
-curl -fsSL -o /tmp/joob-exit "$DOWNLOAD_URL" || error "Download failed. Is there a release at ${DOWNLOAD_URL}?"
-chmod +x /tmp/joob-exit
-mv /tmp/joob-exit "${INSTALL_DIR}/joob-exit"
-info "  Installed to ${INSTALL_DIR}/joob-exit"
+curl -fsSL -o /tmp/joob-server "$DOWNLOAD_URL" || error "Download failed. Is there a release at ${DOWNLOAD_URL}?"
+chmod +x /tmp/joob-server
+mv /tmp/joob-server "${INSTALL_DIR}/joob-server"
+info "  Installed to ${INSTALL_DIR}/joob-server"
 
 # ── Step 3: Create working directory ────────────────────────────────
 info "[3/4] Setting up working directory..."
@@ -66,7 +66,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=${WORK_DIR}
-ExecStart=${INSTALL_DIR}/joob-exit run --config exit.json
+ExecStart=${INSTALL_DIR}/joob-server run --config exit.json
 Restart=always
 RestartSec=5
 LimitNOFILE=65536
@@ -87,7 +87,7 @@ echo "╠═══════════════════════�
 echo "║                                          ║"
 echo "║  Now run the setup wizard:               ║"
 echo "║                                          ║"
-echo "║  cd ~/joob && joob-exit setup             ║"
+echo "║  cd ~/joob && joob-server setup            ║"
 echo "║                                          ║"
 echo "║  You need a Google OAuth Client ID.      ║"
 echo "║  Create one at:                          ║"

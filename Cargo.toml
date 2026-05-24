@@ -2,7 +2,7 @@
 members = [
     "crates/joob-core",
     "crates/joob-client",
-    "crates/joob-exit",
+    "crates/joob-server",
     "crates/joob-gui",
 ]
 resolver = "2"
