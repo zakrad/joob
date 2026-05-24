@@ -17,55 +17,86 @@ Client (restricted network)           VPS Exit (free internet)
        │ TLS to Google IP                   │ Direct TLS
        │ (looks like Drive sync)            │ to googleapis
        ▼                                    ▼
-  ┌─────────────────────────────────────────────────┐
-  │              Google Drive API                    │
-  │                                                 │
-  │   up_000001.bin  (client → exit)                │
-  │   dn_000001.bin  (exit → client)                │
-  │                                                 │
-  │   Write = create/update file                    │
-  │   Read  = HTTP Range GET (new bytes only)       │
-  └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────┐
+  │              Google Drive API                        │
+  │                                                     │
+  │   up_000001.bin  (client → exit)                    │
+  │   dn_000001.bin  (exit → client)                    │
+  │                                                     │
+  │   Write = create/update file                        │
+  │   Read  = HTTP Range GET (new bytes only)           │
+  └─────────────────────────────────────────────────────┘
 ```
+
+## What You Need
+
+| Requirement | Cost | Notes |
+|------------|------|-------|
+| Google account | **Free** | Any Gmail. This is the tunnel medium |
+| Google Cloud project | **Free** | OAuth app setup, no billing/credit card needed |
+| VPS | **$2-5/month** | Any Linux server — the only paid thing |
+| Domain / DNS | **Not needed** | — |
+| Rust toolchain | **Free** | To build from source |
+
+> **Full step-by-step guide: [docs/SETUP.md](docs/SETUP.md)**
 
 ## Quick Start
 
-### 1. VPS Setup (5 minutes)
+### Prerequisites: Google OAuth (one-time, 5 min)
+
+1. Open [console.cloud.google.com](https://console.cloud.google.com) → create a project
+2. Enable **Google Drive API**
+3. Create **OAuth consent screen** (External) → publish the app
+4. Create **OAuth client ID** (Desktop app) → copy the **Client ID** and **Client Secret**
+
+> Detailed instructions with screenshots in [docs/SETUP.md](docs/SETUP.md#step-1-google-cloud-oauth-setup-one-time-5-minutes)
+
+### 1. VPS Setup (exit node)
+
+SSH into any Linux VPS and run:
 
 ```bash
-# On your VPS (any Linux server with internet access):
-curl -LO https://github.com/user/joob/releases/latest/download/joob-exit-linux-amd64
-chmod +x joob-exit-linux-amd64
+# One-line install (installs Rust, builds, sets up systemd auto-start):
+curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
 
-# Interactive setup — authenticates with Google, creates Drive folder
-./joob-exit-linux-amd64 setup
+# Run the setup wizard (authenticates with Google, creates Drive folder):
+~/joob-exit setup --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET"
 
-# Follow the Google auth link, enter the code
-# Setup prints a joob:// profile string — copy it
-
-# Start the exit node
-./joob-exit-linux-amd64 run
+# Start the exit node:
+systemctl start joob
 ```
 
-### 2. Client Setup (Windows)
+The setup wizard will show a URL + code. Open the URL on any device, enter the code, and approve. After that it prints a `joob://...` profile string — **copy it**.
 
-```powershell
-# Download joob-client.exe
-# Connect using the profile from setup:
-.\joob-client.exe connect --profile "joob://eyJ0dW5u..."
+### 2. Client Setup (your PC)
 
-# Or import + save for later:
-.\joob-client.exe import --profile "joob://eyJ0dW5u..." --output client.json
-.\joob-client.exe connect --config client.json
+```bash
+# Build on your machine:
+git clone https://github.com/zakrad/joob.git && cd joob
+cargo build --release
+
+# Save the profile:
+./target/release/joob-client import --profile "joob://..." --output client.json
+
+# Connect:
+./target/release/joob-client connect --config client.json
 ```
+
+**Windows:** same but use `joob-client.exe` after cross-compiling or building on Windows.
 
 ### 3. Configure Your Browser
 
-Set your browser's proxy to:
-- **SOCKS5:** `127.0.0.1:1080` (recommended)
-- **HTTP:** `127.0.0.1:8080`
+Set your browser proxy to **SOCKS5 `127.0.0.1:1080`** using:
+- [Proxy SwitchyOmega](https://chrome.google.com/webstore/detail/proxy-switchyomega) (Chrome/Edge)
+- [FoxyProxy](https://addons.mozilla.org/en-US/firefox/addon/foxyproxy-standard/) (Firefox)
+- Or Firefox → Settings → search "proxy" → Manual → SOCKS5 `127.0.0.1:1080`
 
-Or use a browser extension like [Proxy SwitchyOmega](https://chrome.google.com/webstore/detail/proxy-switchyomega).
+### 4. Verify
+
+```bash
+curl --socks5 127.0.0.1:1080 https://httpbin.org/ip
+# Should show your VPS IP, not your real IP
+```
 
 ## Features
 
@@ -76,6 +107,7 @@ Or use a browser extension like [Proxy SwitchyOmega](https://chrome.google.com/w
 - **Multi-stream** — multiplexed connections, browse normally
 - **Auto-rotation** — Drive files rotate at 10MB, old ones cleaned up
 - **Rate-limit aware** — built-in quota tracking and throttling
+- **Auto-start** — systemd service, restarts on crash
 
 ## Architecture
 
@@ -89,7 +121,7 @@ Or use a browser extension like [Proxy SwitchyOmega](https://chrome.google.com/w
 7. Response flows back through `dn_NNN.bin` files
 
 ### Google Drive Quotas
-- **Upload:** 750 GB/day (500 GB/month = 2.3% of daily limit)
+- **Upload:** 750 GB/day (typical usage: fraction of this)
 - **API calls:** 12,000/minute (typical usage: ~500/minute)
 - **Storage:** 15 GB free (files rotate, never accumulates)
 
@@ -99,30 +131,32 @@ Or use a browser extension like [Proxy SwitchyOmega](https://chrome.google.com/w
 - OAuth tokens stored locally, never transmitted through tunnel
 - Exit can see destination metadata (like any proxy)
 
-## Configuration
+## VPS Management
 
-### Google Edge IPs
-
-If the default IP doesn't work, try these Google edge IPs:
-```
-216.239.38.120
-216.239.32.120
-216.239.34.120
-216.239.36.120
-142.250.0.0/15 (Google's range)
-```
-
-### Custom OAuth
-
-To use your own Google Cloud project (recommended for privacy):
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create project → Enable Drive API
-3. Create OAuth consent screen (External, Testing)
-4. Create OAuth client ID (Desktop app)
-5. Run setup with your credentials:
 ```bash
-./joob-exit setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET"
+# Check status:
+systemctl status joob
+
+# View logs:
+journalctl -u joob --no-pager -n 50
+
+# Clean up old Drive files (do weekly):
+~/joob-exit cleanup
+
+# Restart:
+systemctl restart joob
 ```
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Token refresh failed" | Run `joob-exit revoke` then `joob-exit setup ...` |
+| Slow speed | Normal — Drive API has latency. Lower video quality |
+| "Rate limited" | Wait 1 min, auto-recovers |
+| Connection drops | `systemctl restart joob` on VPS |
+| IP check shows real IP | Check browser proxy settings |
+| Google completely blocked | Joob requires Google access to work |
 
 ## Building from Source
 
@@ -130,22 +164,12 @@ To use your own Google Cloud project (recommended for privacy):
 # Requires Rust 1.75+
 cargo build --release
 
-# Cross-compile for Windows
+# Cross-compile for Windows:
 rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu -p joob-client
 
 # Binaries in target/release/
 ```
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "Token refresh failed" | Run `joob-exit revoke` then `joob-exit setup` |
-| Slow speed | Add more Google accounts, increase file size |
-| "Rate limited" | Reduce polling interval or add accounts |
-| Connection drops | Check VPS internet, re-run exit |
-| "No new data" | Normal during idle — data appears when you browse |
 
 ## Disclaimer
 
