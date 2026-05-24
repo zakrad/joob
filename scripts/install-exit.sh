@@ -29,13 +29,10 @@ if [ -z "$CLIENT_SECRET" ]; then
 fi
 echo ""
 
-# Install git if not present
-if ! command -v git &> /dev/null; then
-    echo "[1/6] Installing git..."
-    apt-get update -qq && apt-get install -y -qq git > /dev/null
-else
-    echo "[1/6] git already installed."
-fi
+# Install build dependencies
+echo "[1/6] Installing build dependencies..."
+apt-get update -qq
+apt-get install -y -qq git build-essential pkg-config libssl-dev > /dev/null 2>&1
 
 # Install Rust if not present
 if ! command -v cargo &> /dev/null; then
@@ -57,7 +54,7 @@ fi
 
 echo "[4/6] Building (this takes ~2 minutes on first run)..."
 cd "$HOME/joob"
-cargo build --release --quiet 2>/dev/null
+cargo build --release
 cp target/release/joob-exit "$HOME/joob-exit"
 chmod +x "$HOME/joob-exit"
 
