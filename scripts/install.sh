@@ -90,8 +90,34 @@ systemctl enable ${SERVICE_NAME}
 info "[5/5] Starting setup wizard..."
 echo ""
 
+# Optional Cloudflare Worker frontend. Used when the *client* is on a network
+# that TCP-blocks Google IPs (e.g. Iran). The Worker proxies Google APIs so
+# the client can reach them via Cloudflare instead of googleapis.com directly.
+echo "─────────────────────────────────────────────"
+echo "  Cloudflare Worker frontend (optional)"
+echo "─────────────────────────────────────────────"
+echo "  If the CLIENT is on a network that blocks all Google IPs"
+echo "  (e.g. Iran), deploy the worker/ Cloudflare Worker first"
+echo "  and paste its URL below. Otherwise, just press Enter."
+echo ""
+read -r -p "  Worker URL (https://...workers.dev, blank to skip): " DRIVE_FRONTEND_URL </dev/tty || DRIVE_FRONTEND_URL=""
+
+DRIVE_FRONTEND_AUTH=""
+if [[ -n "$DRIVE_FRONTEND_URL" ]]; then
+    read -r -p "  Worker shared secret (blank if none): " DRIVE_FRONTEND_AUTH </dev/tty || DRIVE_FRONTEND_AUTH=""
+fi
+echo ""
+
+SETUP_ARGS=()
+if [[ -n "$DRIVE_FRONTEND_URL" ]]; then
+    SETUP_ARGS+=(--drive-frontend-url "$DRIVE_FRONTEND_URL")
+fi
+if [[ -n "$DRIVE_FRONTEND_AUTH" ]]; then
+    SETUP_ARGS+=(--drive-frontend-auth "$DRIVE_FRONTEND_AUTH")
+fi
+
 cd "$WORK_DIR"
-joob-server setup </dev/tty
+joob-server setup "${SETUP_ARGS[@]}" </dev/tty
 
 # ── Start service ───────────────────────────────────────────────────
 echo ""
