@@ -31,18 +31,13 @@ impl ClientTunnel {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Starting Joob client tunnel...");
 
-        // 1. Build fronted HTTP client
-        let google_ip = config
-            .google_ip
-            .parse::<IpAddr>()
-            .unwrap_or(IpAddr::V4(Ipv4Addr::new(216, 239, 38, 120)));
-        let fronting_config = FrontingConfig {
-            google_ip,
-            ..Default::default()
-        };
-        let http = FrontedClient::build(&fronting_config)?;
-
-        // 2. Set up auth
+        // 1. Build HTTP client + Drive client.
+        //
+        // Two modes:
+        // - drive_frontend set: route all Google traffic through a Cloudflare
+        //   Worker. No DNS pinning needed (Cloudflare IPs are reachable).
+        // - Otherwise: legacy domain-fronting that pins googleapis.com to a
+        //   Google edge IP.
         let oauth_config = OAuthConfig {
             client_id: config.oauth.client_id.clone(),
             client_secret: config.oauth.client_secret.clone(),
@@ -50,19 +45,53 @@ impl ClientTunnel {
 
         let token_store = Arc::new(TokenStore::new(dirs_config_path("client_token.json")));
 
-        // Use the refresh token from the profile to get/refresh the access token
-        if token_store.needs_refresh(60).await {
-            info!("Refreshing access token...");
-            let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
-            let token = flow
-                .refresh_token(&config.oauth.refresh_token)
-                .await
-                .map_err(|e| format!("Token refresh failed: {}. Re-run setup on the server to get a new profile.", e))?;
-            token_store.store(token).await?;
-        }
+        let drive = if let Some(frontend) = &config.drive_frontend {
+            info!("Using Cloudflare Worker frontend at {}", frontend.base_url);
+            let http = FrontedClient::build_frontend(frontend.auth_token.as_deref())?;
 
-        // 3. Create Drive client
-        let drive = Arc::new(DriveClient::new(http, token_store, oauth_config));
+            if token_store.needs_refresh(60).await {
+                info!("Refreshing access token via frontend...");
+                let flow = DeviceCodeFlow::with_frontend(
+                    oauth_config.clone(),
+                    http.clone(),
+                    &frontend.base_url,
+                );
+                let token = flow
+                    .refresh_token(&config.oauth.refresh_token)
+                    .await
+                    .map_err(|e| format!("Token refresh failed: {}. Re-run setup on the server to get a new profile.", e))?;
+                token_store.store(token).await?;
+            }
+
+            Arc::new(DriveClient::with_frontend(
+                http,
+                Arc::clone(&token_store),
+                oauth_config,
+                &frontend.base_url,
+            ))
+        } else {
+            let google_ip = config
+                .google_ip
+                .parse::<IpAddr>()
+                .unwrap_or(IpAddr::V4(Ipv4Addr::new(216, 239, 38, 120)));
+            let fronting_config = FrontingConfig {
+                google_ip,
+                ..Default::default()
+            };
+            let http = FrontedClient::build(&fronting_config)?;
+
+            if token_store.needs_refresh(60).await {
+                info!("Refreshing access token...");
+                let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
+                let token = flow
+                    .refresh_token(&config.oauth.refresh_token)
+                    .await
+                    .map_err(|e| format!("Token refresh failed: {}. Re-run setup on the server to get a new profile.", e))?;
+                token_store.store(token).await?;
+            }
+
+            Arc::new(DriveClient::new(http, Arc::clone(&token_store), oauth_config))
+        };
 
         // 4. Create tunnel secret + ciphers
         let key_bytes = base64::engine::general_purpose::STANDARD

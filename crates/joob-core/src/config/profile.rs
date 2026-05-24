@@ -52,6 +52,7 @@ mod tests {
                 client_secret: Some("my-client-secret".to_string()),
                 refresh_token: "my-refresh-token".to_string(),
             },
+            drive_frontend: None,
         }
     }
 

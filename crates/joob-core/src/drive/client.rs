@@ -7,6 +7,17 @@ use tracing::warn;
 const DRIVE_API_BASE: &str = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD_BASE: &str = "https://www.googleapis.com/upload/drive/v3";
 
+/// Build API/upload base URLs for a Cloudflare Worker frontend.
+/// The Worker is expected to map `/drive/v3/...` → `googleapis.com/drive/v3/...`
+/// and `/upload/drive/v3/...` → `googleapis.com/upload/drive/v3/...`.
+fn frontend_bases(frontend_base_url: &str) -> (String, String) {
+    let base = frontend_base_url.trim_end_matches('/');
+    (
+        format!("{}/drive/v3", base),
+        format!("{}/upload/drive/v3", base),
+    )
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum DriveError {
     #[error("HTTP error: {0}")]
@@ -27,6 +38,11 @@ pub struct DriveClient {
     http: Client,
     token_store: Arc<TokenStore>,
     oauth_config: OAuthConfig,
+    api_base: String,
+    upload_base: String,
+    /// Optional Worker frontend URL used to rewrite `oauth2.googleapis.com`
+    /// when refreshing tokens from inside this client.
+    frontend_base: Option<String>,
 }
 
 impl DriveClient {
@@ -35,6 +51,28 @@ impl DriveClient {
             http,
             token_store,
             oauth_config,
+            api_base: DRIVE_API_BASE.to_string(),
+            upload_base: DRIVE_UPLOAD_BASE.to_string(),
+            frontend_base: None,
+        }
+    }
+
+    /// Construct a `DriveClient` that routes all Drive API calls through a
+    /// Cloudflare Worker frontend instead of `www.googleapis.com` directly.
+    pub fn with_frontend(
+        http: Client,
+        token_store: Arc<TokenStore>,
+        oauth_config: OAuthConfig,
+        frontend_base_url: &str,
+    ) -> Self {
+        let (api_base, upload_base) = frontend_bases(frontend_base_url);
+        Self {
+            http,
+            token_store,
+            oauth_config,
+            api_base,
+            upload_base,
+            frontend_base: Some(frontend_base_url.trim_end_matches('/').to_string()),
         }
     }
 
@@ -43,7 +81,14 @@ impl DriveClient {
         // Check if token needs refresh (within 5 min of expiry)
         if self.token_store.needs_refresh(300).await {
             if let Some(refresh_token) = self.token_store.refresh_token().await {
-                let flow = DeviceCodeFlow::new(self.oauth_config.clone(), self.http.clone());
+                let flow = match &self.frontend_base {
+                    Some(base) => DeviceCodeFlow::with_frontend(
+                        self.oauth_config.clone(),
+                        self.http.clone(),
+                        base,
+                    ),
+                    None => DeviceCodeFlow::new(self.oauth_config.clone(), self.http.clone()),
+                };
                 match flow.refresh_token(&refresh_token).await {
                     Ok(new_token) => {
                         self.token_store
@@ -101,7 +146,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .post(&format!("{}/files", DRIVE_API_BASE))
+            .post(&format!("{}/files", self.api_base))
             .bearer_auth(&token)
             .json(&metadata)
             .send()
@@ -147,7 +192,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .post(&format!("{}/files?uploadType=multipart", DRIVE_UPLOAD_BASE))
+            .post(&format!("{}/files?uploadType=multipart", self.upload_base))
             .bearer_auth(&token)
             .header(
                 "Content-Type",
@@ -171,7 +216,7 @@ impl DriveClient {
             .http
             .patch(&format!(
                 "{}/files/{}?uploadType=media",
-                DRIVE_UPLOAD_BASE, file_id
+                self.upload_base, file_id
             ))
             .bearer_auth(&token)
             .header("Content-Type", "application/octet-stream")
@@ -189,7 +234,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .get(&format!("{}/files/{}?alt=media", DRIVE_API_BASE, file_id))
+            .get(&format!("{}/files/{}?alt=media", self.api_base, file_id))
             .bearer_auth(&token)
             .send()
             .await?;
@@ -205,7 +250,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .get(&format!("{}/files/{}?alt=media", DRIVE_API_BASE, file_id))
+            .get(&format!("{}/files/{}?alt=media", self.api_base, file_id))
             .bearer_auth(&token)
             .header("Range", format!("bytes={}-", offset))
             .send()
@@ -236,7 +281,7 @@ impl DriveClient {
             .http
             .get(&format!(
                 "{}/files/{}?fields=size",
-                DRIVE_API_BASE, file_id
+                self.api_base, file_id
             ))
             .bearer_auth(&token)
             .send()
@@ -267,7 +312,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .get(&format!("{}/files", DRIVE_API_BASE))
+            .get(&format!("{}/files", self.api_base))
             .bearer_auth(&token)
             .query(&[
                 ("q", query.as_str()),
@@ -290,7 +335,7 @@ impl DriveClient {
 
         let resp = self
             .http
-            .delete(&format!("{}/files/{}", DRIVE_API_BASE, file_id))
+            .delete(&format!("{}/files/{}", self.api_base, file_id))
             .bearer_auth(&token)
             .send()
             .await?;

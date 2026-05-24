@@ -69,4 +69,21 @@ impl FrontedClient {
             .build()
             .map_err(FrontingError::ClientBuild)
     }
+
+    /// Build a `reqwest::Client` for use with a Cloudflare Worker frontend.
+    ///
+    /// The caller is responsible for rewriting Google API URLs to the Worker's
+    /// base URL — this builder only sets up the optional shared-secret header.
+    /// No DNS pinning: Cloudflare IPs are reachable from everywhere joob runs.
+    pub fn build_frontend(auth_token: Option<&str>) -> Result<reqwest::Client, FrontingError> {
+        let mut builder = reqwest::Client::builder();
+        if let Some(token) = auth_token {
+            let mut headers = reqwest::header::HeaderMap::new();
+            let value = reqwest::header::HeaderValue::from_str(token)
+                .map_err(|e| FrontingError::InvalidSni(e.to_string()))?;
+            headers.insert("X-Joob-Auth", value);
+            builder = builder.default_headers(headers);
+        }
+        builder.build().map_err(FrontingError::ClientBuild)
+    }
 }

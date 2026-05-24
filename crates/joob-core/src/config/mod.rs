@@ -17,6 +17,25 @@ pub struct ClientConfig {
     #[serde(default = "default_http_port")]
     pub http_port: u16,
     pub oauth: OAuthTokens,
+    /// Optional Cloudflare Worker frontend for Google APIs.
+    ///
+    /// When set, the client routes Drive + OAuth traffic through this Worker
+    /// instead of connecting to Google IPs directly. Used in networks where
+    /// Google's edge IPs are TCP-blocked (e.g. Iran).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive_frontend: Option<DriveFrontend>,
+}
+
+/// Cloudflare Worker frontend configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DriveFrontend {
+    /// Worker base URL, e.g. `https://joob-drive.example.workers.dev`.
+    /// No trailing slash.
+    pub base_url: String,
+    /// Optional shared secret. If set, the client sends it as `X-Joob-Auth`
+    /// so randoms can't free-ride your Worker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_token: Option<String>,
 }
 
 fn default_google_ip() -> String {
@@ -105,6 +124,7 @@ mod tests {
             socks_port: 1080,
             http_port: 8080,
             oauth: sample_oauth(),
+            drive_frontend: None,
         }
     }
 
@@ -142,6 +162,41 @@ mod tests {
         let loaded = ExitConfig::load_from_file(&path).unwrap();
         assert_eq!(loaded.tunnel_secret, config.tunnel_secret);
         assert_eq!(loaded.watch_port, Some(9090));
+    }
+
+    #[test]
+    fn test_client_config_with_drive_frontend_roundtrip() {
+        let mut config = sample_client_config();
+        config.drive_frontend = Some(DriveFrontend {
+            base_url: "https://joob-drive.example.workers.dev".to_string(),
+            auth_token: Some("shared-secret".to_string()),
+        });
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        config.save_to_file(&path).unwrap();
+
+        let loaded = ClientConfig::load_from_file(&path).unwrap();
+        let frontend = loaded.drive_frontend.expect("drive_frontend should persist");
+        assert_eq!(frontend.base_url, "https://joob-drive.example.workers.dev");
+        assert_eq!(frontend.auth_token.as_deref(), Some("shared-secret"));
+    }
+
+    #[test]
+    fn test_client_config_without_drive_frontend_loads() {
+        // Old profiles without the new field must still deserialize.
+        let json = r#"{
+            "tunnel_secret": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "drive_folder_id": "folder-123",
+            "oauth": {
+                "client_id": "cid",
+                "client_secret": null,
+                "refresh_token": "rt"
+            }
+        }"#;
+        let mut tmp = NamedTempFile::new().unwrap();
+        tmp.write_all(json.as_bytes()).unwrap();
+        let config = ClientConfig::load_from_file(tmp.path()).unwrap();
+        assert!(config.drive_frontend.is_none());
     }
 
     #[test]

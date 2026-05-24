@@ -305,7 +305,40 @@ joob-server setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET" --oauth-fl
 | Very slow browsing | Normal — Drive API has latency | Try off-peak hours, or lower video quality |
 | "rate limited" in logs | Too many Drive API calls | Wait 1 min, reduces automatically |
 | Connection drops after hours | VPS restart or token issue | `systemctl restart joob` on VPS |
-| Google is completely blocked | Network blocks ALL Google | Joob can't help — it needs Google access |
+| Google is completely blocked | Network blocks ALL Google IPs (TCP times out) | Deploy the Cloudflare Worker frontend — see below |
+
+### Network blocks all Google IPs (Iran-style DPI)
+
+If `curl https://www.googleapis.com` times out at the TCP layer from your
+client machine, the default domain-fronting can't work — there is no Google
+IP you can reach. Use the included Cloudflare Worker as a frontend:
+
+1. Deploy the Worker (one-time):
+
+   ```bash
+   cd worker
+   npm install -g wrangler
+   wrangler login
+   wrangler deploy
+   ```
+
+   It prints `https://joob-drive.<your-subdomain>.workers.dev`. Optional:
+   `wrangler secret put WORKER_AUTH_TOKEN` to require a shared secret.
+   Full details in [`worker/README.md`](../worker/README.md).
+
+2. Re-run setup on the VPS with the Worker URL:
+
+   ```bash
+   joob-server setup --client-id ... \
+     --drive-frontend-url https://joob-drive.<your-subdomain>.workers.dev
+   # add --drive-frontend-auth <token> if you set WORKER_AUTH_TOKEN
+   ```
+
+   This embeds the Worker URL in the generated `joob://...` profile.
+
+3. Import the new profile on the client. The client now talks to
+   Cloudflare (always reachable) which proxies to Google. No Google IP
+   ever sees the client.
 
 ---
 
