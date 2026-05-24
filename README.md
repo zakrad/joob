@@ -161,7 +161,9 @@ Pre-built binaries for every release:
 | Platform | Binary | Description |
 |----------|--------|-------------|
 | Linux x64 | `joob-server-linux-amd64` | Server for VPS |
+| Linux ARM64 | `joob-server-linux-arm64` | Server for ARM VPS (Oracle, RPi) |
 | Linux x64 | `joob-client-linux-amd64` | CLI client |
+| Linux ARM64 | `joob-client-linux-arm64` | CLI client |
 | Windows x64 | `joob-windows-amd64.exe` | Desktop GUI app |
 | Windows x64 | `joob-client-windows-amd64.exe` | CLI client |
 
