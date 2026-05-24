@@ -26,7 +26,7 @@ enum Commands {
         /// Google OAuth client ID
         #[arg(long)]
         client_id: Option<String>,
-        /// Google OAuth client secret (only needed for device-code flow)
+        /// Google OAuth client secret
         #[arg(long)]
         client_secret: Option<String>,
         /// OAuth flow: "pkce" (default, Desktop app) or "device" (TV/Limited Input app)
@@ -116,9 +116,21 @@ async fn run_setup(
         anyhow::bail!("Client ID is required. Create one at https://console.cloud.google.com/apis/credentials");
     }
 
+    // Read client_secret from stdin if not provided
+    let csecret = match client_secret {
+        Some(s) => Some(s),
+        None => {
+            println!("Enter your Google OAuth Client Secret (press Enter to skip if using PKCE-only):");
+            let mut buf = String::new();
+            std::io::stdin().read_line(&mut buf)?;
+            let trimmed = buf.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }
+    };
+
     let oauth_config = OAuthConfig {
         client_id: cid,
-        client_secret: client_secret.clone(),
+        client_secret: csecret,
     };
 
     // Step 1: OAuth login
