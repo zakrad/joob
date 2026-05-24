@@ -16,8 +16,18 @@ use tracing::{error, info};
 pub struct ClientTunnel;
 
 impl ClientTunnel {
+    /// Start the client tunnel. If `on_ready` is provided, it is called once the
+    /// proxy servers are bound and the transport pipe is running.
     pub async fn start(
         config: ClientConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Self::start_with_callback(config, None::<fn()>).await
+    }
+
+    /// Start the client tunnel with an optional ready callback.
+    pub async fn start_with_callback<F: FnOnce() + Send + 'static>(
+        config: ClientConfig,
+        on_ready: Option<F>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Starting Joob client tunnel...");
 
@@ -117,6 +127,11 @@ impl ClientTunnel {
         });
 
         info!("Joob client tunnel running. Press Ctrl+C to stop.");
+
+        // Signal ready
+        if let Some(cb) = on_ready {
+            cb();
+        }
 
         // Wait for shutdown
         tokio::signal::ctrl_c().await?;
