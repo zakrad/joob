@@ -36,7 +36,6 @@ Client (restricted network)           VPS Exit (free internet)
 | Google Cloud project | **Free** | OAuth app setup, no billing/credit card needed |
 | VPS | **$2-5/month** | Any Linux server — the only paid thing |
 | Domain / DNS | **Not needed** | — |
-| Rust toolchain | **Free** | To build from source |
 
 > **Full step-by-step guide: [docs/SETUP.md](docs/SETUP.md)**
 
@@ -47,39 +46,64 @@ Client (restricted network)           VPS Exit (free internet)
 1. Open [console.cloud.google.com](https://console.cloud.google.com) → create a project
 2. Enable **Google Drive API**
 3. Create **OAuth consent screen** (External) → publish the app
-4. Create **OAuth client ID** (Desktop app) → copy the **Client ID** and **Client Secret**
+4. Create **OAuth client ID** → type: **Desktop app** → copy the **Client ID**
 
-> Detailed instructions with screenshots in [docs/SETUP.md](docs/SETUP.md#step-1-google-cloud-oauth-setup-one-time-5-minutes)
+> No client secret needed — Joob uses PKCE (Proof Key for Code Exchange).
+>
+> Detailed instructions in [docs/SETUP.md](docs/SETUP.md#step-1-google-cloud-oauth-setup-one-time-5-minutes)
 
 ### 1. VPS Setup (exit node)
 
 SSH into any Linux VPS and run:
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh
-sudo bash install-exit.sh
+curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
 ```
 
-It asks for your Google Client ID and Secret, then does everything automatically:
-installs Rust → builds → authenticates with Google → starts the service.
+This downloads a pre-built binary (~30 seconds, no compilation needed).
 
-When prompted, open the Google URL on any device, enter the code, and approve. The script prints a `joob://...` profile string — **copy it**.
-
-### 2. Client Setup (your PC)
+Then run the setup wizard:
 
 ```bash
-# Build on your machine:
-git clone https://github.com/zakrad/joob.git && cd joob
-cargo build --release
-
-# Save the profile:
-./target/release/joob-client import --profile "joob://..." --output client.json
-
-# Connect:
-./target/release/joob-client connect --config client.json
+cd ~/joob && joob-exit setup
 ```
 
-**Windows:** same but use `joob-client.exe` after cross-compiling or building on Windows.
+It will:
+1. Ask for your Client ID
+2. Print a Google authorization URL — open it in any browser, authorize, then paste the redirect URL back
+3. Create a Drive folder and generate a `joob://...` profile string — **copy it**
+
+Start the service:
+```bash
+systemctl start joob
+```
+
+### 2. Client Setup
+
+#### Windows (GUI)
+
+Download `joob-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases).
+
+Run it, paste the `joob://...` profile, click **Connect**.
+
+#### Windows / macOS / Linux (CLI)
+
+Download the binary for your platform from [Releases](https://github.com/zakrad/joob/releases), or build from source:
+
+```bash
+git clone https://github.com/zakrad/joob.git && cd joob
+cargo build --release
+```
+
+Then:
+
+```bash
+# Save the profile:
+joob-client import --profile "joob://..." --output client.json
+
+# Connect:
+joob-client connect --config client.json
+```
 
 ### 3. Configure Your Browser
 
@@ -97,7 +121,9 @@ curl --socks5 127.0.0.1:1080 https://httpbin.org/ip
 
 ## Features
 
-- **Single binary** — no Python, no Node.js, no dependencies
+- **Pre-built binaries** — no Rust required, just download and run
+- **Desktop GUI** — Windows app with one-click connect
+- **PKCE OAuth** — no client secret needed, just a Client ID
 - **Domain-fronted** — all traffic goes to Google IPs, passes DPI
 - **Encrypted** — AES-256-GCM with per-session keys
 - **High throughput** — 5-20 Mbps sustained, 500GB/month easily
@@ -128,6 +154,19 @@ curl --socks5 127.0.0.1:1080 https://httpbin.org/ip
 - OAuth tokens stored locally, never transmitted through tunnel
 - Exit can see destination metadata (like any proxy)
 
+## Downloads
+
+Pre-built binaries for every release:
+
+| Platform | Binary | Description |
+|----------|--------|-------------|
+| Linux x64 | `joob-exit-linux-amd64` | Exit node for VPS |
+| Linux x64 | `joob-client-linux-amd64` | CLI client |
+| Windows x64 | `joob-windows-amd64.exe` | Desktop GUI app |
+| Windows x64 | `joob-client-windows-amd64.exe` | CLI client |
+
+Download from [Releases](https://github.com/zakrad/joob/releases).
+
 ## VPS Management
 
 ```bash
@@ -138,7 +177,7 @@ systemctl status joob
 journalctl -u joob --no-pager -n 50
 
 # Clean up old Drive files (do weekly):
-~/joob-exit cleanup
+joob-exit cleanup
 
 # Restart:
 systemctl restart joob
@@ -148,7 +187,7 @@ systemctl restart joob
 
 | Issue | Solution |
 |-------|----------|
-| "Token refresh failed" | Run `joob-exit revoke` then `joob-exit setup ...` |
+| "Token refresh failed" | Run `joob-exit revoke` then `joob-exit setup` |
 | Slow speed | Normal — Drive API has latency. Lower video quality |
 | "Rate limited" | Wait 1 min, auto-recovers |
 | Connection drops | `systemctl restart joob` on VPS |
@@ -161,11 +200,8 @@ systemctl restart joob
 # Requires Rust 1.75+
 cargo build --release
 
-# Cross-compile for Windows:
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu -p joob-client
-
 # Binaries in target/release/
+# joob-exit, joob-client, joob (GUI)
 ```
 
 ## Disclaimer

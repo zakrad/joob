@@ -49,7 +49,7 @@ mod tests {
             http_port: 8080,
             oauth: OAuthTokens {
                 client_id: "my-client-id".to_string(),
-                client_secret: "my-client-secret".to_string(),
+                client_secret: Some("my-client-secret".to_string()),
                 refresh_token: "my-refresh-token".to_string(),
             },
         }

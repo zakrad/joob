@@ -43,7 +43,8 @@ pub struct ExitConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokens {
     pub client_id: String,
-    pub client_secret: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
     pub refresh_token: String,
 }
 
@@ -88,7 +89,7 @@ mod tests {
     fn sample_oauth() -> OAuthTokens {
         OAuthTokens {
             client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
+            client_secret: Some("test-client-secret".to_string()),
             refresh_token: "test-refresh-token".to_string(),
         }
     }
@@ -151,7 +152,7 @@ mod tests {
             "drive_folder_id": "folder-123",
             "oauth": {
                 "client_id": "cid",
-                "client_secret": "cs",
+                "client_secret": null,
                 "refresh_token": "rt"
             }
         }"#;

@@ -37,6 +37,7 @@ impl ClientTunnel {
             client_id: config.oauth.client_id.clone(),
             client_secret: config.oauth.client_secret.clone(),
         };
+
         let token_store = Arc::new(TokenStore::new(dirs_config_path("client_token.json")));
 
         // Check if we need to login

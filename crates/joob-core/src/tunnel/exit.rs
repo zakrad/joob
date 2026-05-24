@@ -30,6 +30,7 @@ impl ExitTunnel {
             client_id: config.oauth.client_id.clone(),
             client_secret: config.oauth.client_secret.clone(),
         };
+
         let token_store = Arc::new(TokenStore::new(dirs_config_path("exit_token.json")));
 
         if token_store.needs_refresh(0).await {
