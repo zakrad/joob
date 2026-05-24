@@ -56,7 +56,8 @@ Client (restricted network)           VPS Exit (free internet)
 SSH into any Linux VPS and run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
+curl -sSLO https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh
+sudo bash install-exit.sh
 ```
 
 It asks for your Google Client ID and Secret, then does everything automatically:
