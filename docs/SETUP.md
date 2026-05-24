@@ -1,252 +1,240 @@
-# Joob — Complete Setup Guide
+# Joob — Setup Guide
 
-This guide walks you through every step from zero to a working tunnel.
+## What You Need (and What You Don't)
 
-**Time required:** ~15 minutes  
-**What you need:**
-- A VPS with internet access ($3-5/month, any provider)
-- A free Google account
-- A Windows/Mac/Linux computer (the client)
+| Requirement | Needed? | Cost | Notes |
+|------------|---------|------|-------|
+| Google account | **Yes** | Free | Any Gmail works. This is the tunnel medium. |
+| Google Cloud project | **Yes** | Free | You create an OAuth app (5 min, no credit card) |
+| Domain / DNS | **No** | — | Not needed at all |
+| VPS (server) | **Yes** | $2-5/month | Any Linux server with internet. The "exit door" |
+| Credit card for Google | **No** | — | Google Cloud project is free, no billing required |
+| Static IP | **No** | — | VPS comes with one. Client doesn't need one |
+| Port forwarding | **No** | — | Nothing listens on public ports |
+| Rust (programming language) | **Yes** | Free | To build from source. Takes 2 minutes to install |
 
----
-
-## Table of Contents
-
-1. [Create a Google Cloud Project](#step-1-create-a-google-cloud-project)
-2. [Build Joob from Source](#step-2-build-joob-from-source)
-3. [Set Up the Exit Node (VPS)](#step-3-set-up-the-exit-node-vps)
-4. [Set Up the Client (Your PC)](#step-4-set-up-the-client-your-pc)
-5. [Configure Your Browser](#step-5-configure-your-browser)
-6. [Verify Everything Works](#step-6-verify-everything-works)
-7. [Maintenance & Troubleshooting](#step-7-maintenance--troubleshooting)
+**Total cost: $0-5/month** (only the VPS).
 
 ---
 
-## Step 1: Create a Google Cloud Project
+## Overview: What Happens
 
-You need a Google Cloud project with the Drive API enabled and an OAuth client ID. This is free and takes ~5 minutes.
-
-### 1.1 Go to Google Cloud Console
-
-Open [https://console.cloud.google.com](https://console.cloud.google.com) and sign in with your Google account.
-
-### 1.2 Create a New Project
-
-1. Click the project dropdown at the top of the page (it may say "Select a project")
-2. Click **"New Project"**
-3. Enter a name (e.g. `joob-tunnel`)
-4. Click **"Create"**
-5. Wait a few seconds, then select your new project from the dropdown
-
-### 1.3 Enable the Google Drive API
-
-1. In the left sidebar, go to **APIs & Services** → **Library**
-2. Search for **"Google Drive API"**
-3. Click on it, then click **"Enable"**
-
-### 1.4 Configure OAuth Consent Screen
-
-1. Go to **APIs & Services** → **OAuth consent screen**
-2. Select **"External"** user type → Click **"Create"**
-3. Fill in the required fields:
-   - **App name:** `Joob` (or anything you want)
-   - **User support email:** your email
-   - **Developer contact email:** your email
-4. Click **"Save and Continue"**
-5. On the **Scopes** page, click **"Add or Remove Scopes"**
-   - Search for `drive.file`
-   - Check the box for **`../auth/drive.file`** (Google Drive API — See, edit, create, and delete only the specific Google Drive files you use with this app)
-   - Click **"Update"**
-6. Click **"Save and Continue"**
-7. On the **Test users** page, click **"Add Users"**
-   - Add your own Google email address
-   - Click **"Save and Continue"**
-8. Click **"Back to Dashboard"**
-
-### 1.5 Create OAuth Client ID
-
-1. Go to **APIs & Services** → **Credentials**
-2. Click **"+ Create Credentials"** → **"OAuth client ID"**
-3. Application type: **"Desktop app"** (or "TVs and Limited Input devices")
-4. Name: `joob-client` (or anything)
-5. Click **"Create"**
-6. A dialog appears with your **Client ID** and **Client Secret**
-7. **Copy both values** — you'll need them in Step 3
-
-> **Important:** Keep your Client ID and Client Secret private. Anyone with these can use your Google Cloud project's quota.
-
-### 1.6 (Optional) Publish the App
-
-By default, your OAuth app is in "Testing" mode, which limits it to test users you've added and tokens expire after 7 days.
-
-To avoid re-authorizing every week:
-1. Go to **OAuth consent screen**
-2. Click **"Publish App"**
-3. Confirm the warning
-
-> Note: "Publishing" doesn't make your app public or discoverable. It just removes the test-user restriction and token expiry.
-
----
-
-## Step 2: Build Joob from Source
-
-### Prerequisites
-
-Install the Rust toolchain if you don't have it:
-
-```bash
-# Linux / macOS:
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
-
-# Windows (PowerShell):
-# Download and run https://rustup.rs
+```
+YOUR PC (restricted network)        YOUR VPS (free internet)
+  Browser                             joob-exit
+    ↓                                   ↓
+  joob-client                      dials websites
+  (local proxy)                    on your behalf
+    ↓                                   ↑
+    └───── Google Drive files ──────────┘
+          (encrypted, looks like
+           normal Google Drive sync)
 ```
 
-Verify:
+You run `joob-exit` on a VPS, `joob-client` on your PC. All traffic looks like Google Drive file syncing to anyone watching your network.
+
+---
+
+## Step 1: Google Cloud OAuth Setup (one-time, 5 minutes)
+
+This creates a free "app" that lets Joob access a folder in your Google Drive. No credit card, no billing.
+
+### 1.1 — Create a Google Cloud Project
+
+1. Open **[console.cloud.google.com](https://console.cloud.google.com)**
+2. Sign in with any Google/Gmail account
+3. If it asks to agree to Terms of Service, accept them
+4. At the top bar, click the project dropdown → **"New Project"**
+5. Name it anything (e.g. `my-project`) → **"Create"**
+6. Make sure your new project is selected in the top dropdown
+
+### 1.2 — Enable Drive API
+
+1. In the left menu: **APIs & Services** → **Library**
+2. Search: `Google Drive API`
+3. Click it → click **"Enable"**
+
+### 1.3 — OAuth Consent Screen
+
+1. Left menu: **APIs & Services** → **OAuth consent screen**
+2. Click **"Get started"** (or "Configure consent screen")
+3. App name: type anything (e.g. `myapp`)
+4. User support email: select your email
+5. Audience: select **External**
+6. Contact email: type your email
+7. Click **"Create"** or **"Save"**
+8. On the next screens keep clicking **Continue / Save** (defaults are fine)
+9. When you see **"Publish App"** button, click it and confirm
+   - This is NOT public — it just removes the 7-day token expiry
+
+### 1.4 — Create Client ID
+
+1. Left menu: **APIs & Services** → **Credentials**
+2. Click **"+ Create Credentials"** → **"OAuth client ID"**
+3. Application type: **"Desktop app"** (or "TVs and Limited Input devices")
+4. Name: anything
+5. Click **"Create"**
+6. A popup shows your **Client ID** and **Client Secret**
+7. **Copy both** — you'll paste them in Step 3
+
+That's it for Google. You now have a `Client ID` and `Client Secret`.
+
+---
+
+## Step 2: Build Joob (2 minutes)
+
+### Install Rust (if you don't have it)
+
 ```bash
-rustc --version   # Should be 1.75+
-cargo --version
+# Linux / macOS (one command):
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source ~/.cargo/env
 ```
 
 ### Build
 
 ```bash
-# Clone the repo (or copy the joob directory to both machines)
 cd ~/joob
-
-# Build release binaries
 cargo build --release
-
-# Binaries are at:
-#   target/release/joob-exit    (~7MB)
-#   target/release/joob-client  (~7MB)
 ```
 
-### Cross-Compile for Windows (from Linux/macOS)
+This produces two binaries:
+- `target/release/joob-exit` — for the VPS (~7MB)
+- `target/release/joob-client` — for your PC (~7MB)
 
-If you're building on Linux/Mac but need a Windows client:
+### Building for Windows (from Linux/Mac)
 
 ```bash
-# Install the Windows target
 rustup target add x86_64-pc-windows-gnu
-
-# On Ubuntu/Debian, install the cross-linker:
-sudo apt install gcc-mingw-w64-x86-64
-
-# Build for Windows
+sudo apt install gcc-mingw-w64-x86-64   # Ubuntu/Debian only
 cargo build --release --target x86_64-pc-windows-gnu -p joob-client
-
-# Binary at: target/x86_64-pc-windows-gnu/release/joob-client.exe
+# Output: target/x86_64-pc-windows-gnu/release/joob-client.exe
 ```
-
-### Cross-Compile for Linux (from macOS)
-
-```bash
-# Install the Linux target
-rustup target add x86_64-unknown-linux-gnu
-
-# You may need a cross-linker — or just build directly on the VPS
-cargo build --release --target x86_64-unknown-linux-gnu -p joob-exit
-```
-
-> **Tip:** The easiest approach is to build `joob-exit` directly on your VPS and `joob-client` on your local machine.
 
 ---
 
-## Step 3: Set Up the Exit Node (VPS)
+## Step 3: VPS Setup (the exit node)
 
-The exit node runs on a VPS with unrestricted internet access. It receives your tunneled traffic through Google Drive and forwards it to the real internet.
+### 3.1 — Get a VPS
 
-### 3.1 Get a VPS
+Buy the cheapest Linux VPS you can find. Any provider works:
 
-Any cheap VPS works. Recommended providers:
-- [Hetzner](https://hetzner.com) — €3.79/month (Germany)
-- [DigitalOcean](https://digitalocean.com) — $4/month
-- [Vultr](https://vultr.com) — $3.50/month
-- [BuyVM](https://buyvm.net) — $2/month
+| Provider | Price | How to get |
+|----------|-------|-----------|
+| [Hetzner](https://hetzner.com/cloud) | €3.79/mo | Sign up → Cloud → Add Server → Ubuntu 22.04 |
+| [DigitalOcean](https://digitalocean.com) | $4/mo | Sign up → Create Droplet → Ubuntu |
+| [Vultr](https://vultr.com) | $3.50/mo | Sign up → Deploy Server → Ubuntu |
+| [BuyVM](https://buyvm.net) | $2/mo | Cheapest option |
 
-Requirements:
-- Linux (Ubuntu 22.04+ recommended)
-- 512MB RAM minimum
-- Unrestricted outbound internet
+Requirements: Linux, 512MB RAM, internet access. That's it.
 
-### 3.2 Copy the Binary to Your VPS
+After you get the VPS, you'll have an **IP address** and **SSH credentials**.
+
+### 3.2 — One-Line VPS Install
+
+SSH into your VPS and run:
 
 ```bash
-# From your local machine:
-scp target/release/joob-exit user@your-vps-ip:~/
+ssh root@YOUR_VPS_IP
+```
 
-# Or build directly on the VPS:
-ssh user@your-vps-ip
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+Then copy and run this entire block:
+
+```bash
+# Install Rust + build Joob (skip if you already built and will scp the binary)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
-# ... copy source code and build
+
+# Clone and build (or scp the binary instead)
+git clone https://github.com/zakrad/joob.git ~/joob
+cd ~/joob
+cargo build --release
+cp target/release/joob-exit ~/joob-exit
 ```
 
-### 3.3 Run the Setup
+**OR** if you already built on your local machine, just copy the binary:
 
 ```bash
-ssh user@your-vps-ip
-
-# Make executable
-chmod +x joob-exit
-
-# Run interactive setup
-./joob-exit setup \
-  --client-id "YOUR_CLIENT_ID_FROM_STEP_1" \
-  --client-secret "YOUR_CLIENT_SECRET_FROM_STEP_1"
+# From your LOCAL machine (not the VPS):
+scp ~/joob/target/release/joob-exit root@YOUR_VPS_IP:~/joob-exit
 ```
 
-This will:
-1. Print a Google authorization URL and a code
-2. **Open the URL in a browser** on any device (your phone is fine)
-3. Sign in with your Google account
-4. Enter the code shown in the terminal
-5. Approve the Drive file access permission
+### 3.3 — Run Setup
 
-After authorization succeeds, the setup will:
-- Create a `joob-tunnel` folder in your Google Drive
-- Generate a 32-byte encryption key
-- Save `exit.json` configuration file
-- Print a **`joob://...` profile string**
+On the VPS:
+
+```bash
+chmod +x ~/joob-exit
+
+~/joob-exit setup \
+  --client-id "PASTE_YOUR_CLIENT_ID_HERE" \
+  --client-secret "PASTE_YOUR_CLIENT_SECRET_HERE"
+```
+
+**What happens:**
 
 ```
 ╔══════════════════════════════════════════╗
-║          SETUP COMPLETE ✓                ║
-╠══════════════════════════════════════════╣
-║                                          ║
-║  Share this profile with the client:     ║
-║                                          ║
+║          JOOB EXIT SETUP                 ║
 ╚══════════════════════════════════════════╝
 
-joob://eyJ0dW5uZWxfc2VjcmV0Ijoi...
+Step 1/4: Google authentication...
 
-Run the exit node:  joob-exit run
+╔══════════════════════════════════════════╗
+║         GOOGLE AUTHORIZATION             ║
+╠══════════════════════════════════════════╣
+║                                          ║
+║  Visit: https://www.google.com/device    ║
+║  Code:  ABCD-EFGH                        ║
+║                                          ║
+╚══════════════════════════════════════════╝
 ```
 
-> **Copy the `joob://...` string.** This is your client profile — you'll paste it on your PC in Step 4.
+1. **Open the URL** shown (on any device — your phone, another PC, anything)
+2. **Enter the code** shown (e.g. `ABCD-EFGH`)
+3. Sign in with the same Google account from Step 1
+4. Click **"Allow"** when it asks for Drive access
 
-### 3.4 Start the Exit Node
+After you approve, the setup finishes automatically:
 
+```
+Step 2/4: Creating Drive folder...
+Step 3/4: Generating tunnel secret...
+Step 4/4: Config saved to exit.json
+
+╔══════════════════════════════════════════╗
+║          SETUP COMPLETE ✓                ║
+╚══════════════════════════════════════════╝
+
+joob://eyJ0dW5uZWxfc2VjcmV0IjoiYWJjZGVmZy4uLi4uLi4u...
+```
+
+5. **Copy the `joob://...` line** — this is your client connection string
+
+### 3.4 — Start the Exit Node
+
+Quick start (stays running while your SSH is open):
 ```bash
-# Foreground (for testing):
-./joob-exit run
+~/joob-exit run
+```
 
-# Background with nohup:
-nohup ./joob-exit run > joob.log 2>&1 &
+Run in background (keeps running after you disconnect):
+```bash
+nohup ~/joob-exit run > ~/joob.log 2>&1 &
+```
 
-# Or as a systemd service (recommended):
-sudo tee /etc/systemd/system/joob-exit.service > /dev/null <<EOF
+**Recommended: auto-start on boot** — run this once:
+```bash
+cat > /etc/systemd/system/joob.service << 'EOF'
 [Unit]
-Description=Joob Tunnel Exit Node
+Description=Joob Exit Node
 After=network.target
 
 [Service]
 Type=simple
-User=$USER
-WorkingDirectory=$HOME
-ExecStart=$HOME/joob-exit run
+User=root
+WorkingDirectory=/root
+ExecStart=/root/joob-exit run
 Restart=always
 RestartSec=5
 
@@ -254,37 +242,52 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable joob-exit
-sudo systemctl start joob-exit
-
-# Check status:
-sudo systemctl status joob-exit
-
-# View logs:
-journalctl -u joob-exit -f
+systemctl daemon-reload
+systemctl enable joob
+systemctl start joob
 ```
+
+Check it's running:
+```bash
+systemctl status joob
+```
+
+**VPS setup is done.** You can close the SSH session.
 
 ---
 
-## Step 4: Set Up the Client (Your PC)
-
-The client runs on your local machine (the one behind the restricted network).
+## Step 4: Client Setup (your PC)
 
 ### Windows
 
-1. Copy `joob-client.exe` to any folder (e.g. `C:\joob\`)
-2. Open **PowerShell** or **Command Prompt**
-3. Navigate to the folder:
-   ```powershell
-   cd C:\joob
-   ```
-4. Connect using the profile from Step 3:
-   ```powershell
-   .\joob-client.exe connect --profile "joob://eyJ0dW5uZWxfc2VjcmV0Ijoi..."
-   ```
+1. Copy `joob-client.exe` to a folder (e.g. `C:\joob\`)
+2. Open PowerShell or Command Prompt
+3. Run:
 
-You should see:
+```powershell
+cd C:\joob
+
+# First time — save the profile:
+.\joob-client.exe import --profile "joob://eyJ0dW5uZWxfc2Vj..." --output client.json
+
+# Connect:
+.\joob-client.exe connect --config client.json
+```
+
+### macOS / Linux
+
+```bash
+chmod +x joob-client
+
+# First time — save the profile:
+./joob-client import --profile "joob://eyJ0dW5uZWxfc2Vj..." --output client.json
+
+# Connect:
+./joob-client connect --config client.json
+```
+
+### What You Should See
+
 ```
 ╔══════════════════════════════════════════╗
 ║          JOOB CLIENT                     ║
@@ -292,277 +295,175 @@ You should see:
 ║  SOCKS5: 127.0.0.1:1080                 ║
 ║  HTTP:   127.0.0.1:8080                 ║
 ╚══════════════════════════════════════════╝
+
+Joob client tunnel running. Press Ctrl+C to stop.
 ```
 
-### Save the Profile for Later
-
-Instead of pasting the long profile string every time:
-
-```powershell
-# Import and save to a config file:
-.\joob-client.exe import --profile "joob://eyJ0dW5uZWxfc2VjcmV0Ijoi..." --output client.json
-
-# Next time, just:
-.\joob-client.exe connect --config client.json
-```
-
-### macOS / Linux
-
-Same commands, just without the `.exe`:
-```bash
-chmod +x joob-client
-./joob-client connect --profile "joob://..."
-```
-
-### Custom Ports
-
-```bash
-# Use different ports:
-./joob-client connect --config client.json --socks-port 9090 --http-port 9091
-```
+**Leave this running** while you browse.
 
 ---
 
-## Step 5: Configure Your Browser
+## Step 5: Tell Your Browser to Use the Tunnel
 
-With the client running, you need to tell your browser to use the local proxy.
+Pick ONE of these methods:
 
-### Option A: Browser Extension (Recommended)
+### Method A — Browser Extension (easiest, recommended)
 
-1. Install [Proxy SwitchyOmega](https://chrome.google.com/webstore/detail/proxy-switchyomega) (Chrome/Edge) or [FoxyProxy](https://addons.mozilla.org/en-US/firefox/addon/foxyproxy-standard/) (Firefox)
-2. Create a new profile with:
-   - **Protocol:** SOCKS5
-   - **Server:** `127.0.0.1`
-   - **Port:** `1080`
-3. Enable the profile
-4. Browse any website — traffic goes through the tunnel
+**Chrome / Edge:**
+1. Install [Proxy SwitchyOmega](https://chrome.google.com/webstore/detail/proxy-switchyomega)
+2. Click the extension icon → **"Options"**
+3. Click **"New profile"** → name it `Joob` → type **"Proxy Profile"** → **"Create"**
+4. Set:
+   - Protocol: **SOCKS5**
+   - Server: `127.0.0.1`
+   - Port: `1080`
+5. Click **"Apply changes"** (left sidebar)
+6. Click the extension icon → select **"Joob"**
 
-### Option B: System-Wide Proxy (Windows)
+**Firefox:**
+1. Install [FoxyProxy Standard](https://addons.mozilla.org/en-US/firefox/addon/foxyproxy-standard/)
+2. Click the icon → **"Options"**
+3. Add new proxy: SOCKS5, `127.0.0.1`, port `1080`
+4. Enable it
 
-1. Open **Settings** → **Network & Internet** → **Proxy**
-2. Under **Manual proxy setup**, turn on **"Use a proxy server"**
+### Method B — Firefox Built-in Settings
+
+1. Firefox → **Settings** → search `proxy`
+2. Click **"Settings..."**
+3. Select **"Manual proxy configuration"**
+4. SOCKS Host: `127.0.0.1` — Port: `1080`
+5. Select **"SOCKS v5"**
+6. ✅ Check **"Proxy DNS when using SOCKS v5"** ← important!
+7. Click **"OK"**
+
+### Method C — Windows System Proxy
+
+1. Windows Settings → **Network & Internet** → **Proxy**
+2. Under Manual proxy setup: turn **ON**
 3. Address: `127.0.0.1`
 4. Port: `8080`
-5. Check **"Don't use the proxy server for local addresses"**
-6. Save
+5. Save
 
-### Option C: Firefox Proxy Settings
+### Method D — Telegram Only
 
-1. Open Firefox → **Settings** → Search for "proxy"
-2. Click **"Settings..."** under Network Settings
-3. Select **"Manual proxy configuration"**
-4. SOCKS Host: `127.0.0.1`, Port: `1080`
-5. Select **"SOCKS v5"**
-6. Check **"Proxy DNS when using SOCKS v5"** (important!)
-7. Click **OK**
-
-### Option D: Telegram
-
-For Telegram specifically:
-- Open Telegram → Settings → Advanced → Connection type
-- Select **SOCKS5**
+Telegram → Settings → Advanced → Connection type → **Custom** (SOCKS5)
 - Server: `127.0.0.1`
 - Port: `1080`
 - No username/password
 
-Or use this link directly:
-```
-https://t.me/socks?server=127.0.0.1&port=1080
-```
-
 ---
 
-## Step 6: Verify Everything Works
+## Step 6: Verify It Works
 
-### Test 1: Check Your IP
+### Check your IP
 
-1. Configure your browser to use the proxy (Step 5)
-2. Visit [https://httpbin.org/ip](https://httpbin.org/ip)
-3. The IP shown should be your **VPS IP**, not your real IP
+1. Open your proxied browser
+2. Go to **[https://httpbin.org/ip](https://httpbin.org/ip)**
+3. It should show your **VPS IP**, NOT your real IP
 
-### Test 2: Command-Line Test
+### Command line check
 
 ```bash
-# Using curl through SOCKS5:
+# Through the SOCKS proxy:
 curl --socks5 127.0.0.1:1080 https://httpbin.org/ip
 
-# Using curl through HTTP proxy:
-curl --proxy http://127.0.0.1:8080 https://httpbin.org/ip
+# Through the HTTP proxy:
+curl -x http://127.0.0.1:8080 https://httpbin.org/ip
 ```
 
-### Test 3: Speed Test
+If it shows your VPS IP → **everything works!**
 
-Visit [https://fast.com](https://fast.com) through the proxy to check your throughput.
+### DNS leak check
 
-Expected performance:
-- **Latency:** 200-500ms per request
-- **Download speed:** 5-20 Mbps (depends on VPS and Google Drive API response time)
-- **Monthly capacity:** 500GB+ easily
-
-### Test 4: DNS Leak Test
-
-Visit [https://dnsleaktest.com](https://dnsleaktest.com) through the proxy. DNS should resolve through the VPS, not your local ISP.
-
-> **Important:** Make sure "Proxy DNS when using SOCKS v5" is enabled in your browser.
+Go to [https://dnsleaktest.com](https://dnsleaktest.com) through the proxy → click "Extended test". You should only see your VPS provider's DNS, not your local ISP.
 
 ---
 
-## Step 7: Maintenance & Troubleshooting
+## Quick Reference
 
-### Clean Up Old Drive Files
-
-Over time, rotated tunnel files accumulate in your Drive. Clean them up:
+### Daily Usage
 
 ```bash
-# On the VPS:
-./joob-exit cleanup
+# Start (leave running):
+./joob-client connect --config client.json
+
+# Stop:
+Ctrl+C
 ```
 
-### Re-Authenticate (Token Expired)
-
-If you see "token refresh failed" errors:
+### VPS Management
 
 ```bash
-# On the VPS:
-./joob-exit revoke
-./joob-exit setup --client-id "YOUR_ID" --client-secret "YOUR_SECRET"
+# Check exit node status:
+ssh root@VPS_IP "systemctl status joob"
 
-# Then update the client profile
+# View logs:
+ssh root@VPS_IP "journalctl -u joob --no-pager -n 50"
+
+# Clean up old Drive files (do this weekly):
+ssh root@VPS_IP "~/joob-exit cleanup"
+
+# Restart:
+ssh root@VPS_IP "systemctl restart joob"
 ```
 
-### Change the Google Edge IP
+### If Google IP Doesn't Work
 
-If the default Google IP (`216.239.38.120`) doesn't work on your network, try others:
+The client connects to Google through a specific IP. If the default doesn't work, try alternatives:
 
 ```
 216.239.32.120
 216.239.34.120
 216.239.36.120
 216.239.38.120
-142.250.185.0 - 142.250.189.255 (Google's range)
 ```
 
-To find a working IP, try:
+Find a working one:
 ```bash
-# From the restricted network:
+# From your restricted network:
 ping www.google.com
 # Use whatever IP responds
 ```
 
-Then update your client config:
-```bash
-# Edit client.json and change "google_ip"
-# Or re-import with the correct IP:
-./joob-client import --profile "joob://..." --output client.json
-```
+Edit `client.json` and change the `"google_ip"` field.
 
-### Run as Background Service
+---
 
-#### VPS (Linux systemd) — see Step 3.4
+## Troubleshooting
 
-#### Windows (Task Scheduler)
-
-1. Open **Task Scheduler**
-2. Create Task → Name: "Joob Client"
-3. Trigger: "At log on"
-4. Action: Start a program
-   - Program: `C:\joob\joob-client.exe`
-   - Arguments: `connect --config C:\joob\client.json`
-5. Conditions: uncheck "Start only if AC power"
-6. Settings: check "If task fails, restart every 1 minute"
-
-### Multiple Google Accounts (Higher Throughput)
-
-For heavy usage, you can pool multiple Google accounts:
-
-1. Run `joob-exit setup` with each Google account
-2. Each setup creates a separate `exit.json` and profile
-3. Use the same tunnel secret across all accounts
-4. (Advanced: edit config to add multiple oauth entries)
-
-### Common Issues
-
-| Problem | Cause | Fix |
+| Symptom | Cause | Fix |
 |---------|-------|-----|
-| "failed to upload data" | Drive API rate limit | Wait 1 min, or add more Google accounts |
-| "token refresh failed" | Token expired/revoked | Run `joob-exit revoke` then `setup` |
-| Slow browsing | High latency to Google | Try a different Google edge IP |
-| Can't reach Google at all | Network fully blocked | Joob can't help if Google itself is blocked |
-| "connection refused" on 1080 | Client not running | Start `joob-client connect` first |
-| Sites show CAPTCHA | Target sees Google/VPS IP | Normal for Cloudflare-protected sites |
-| YouTube doesn't stream | Bandwidth too high | Lower video quality, or try different time of day |
+| `joob-exit setup` shows "PLACEHOLDER" error | Missing OAuth credentials | Add `--client-id` and `--client-secret` flags |
+| "token refresh failed" | Token expired or revoked | On VPS: `~/joob-exit revoke` then `~/joob-exit setup ...` |
+| Can't reach `httpbin.org/ip` through proxy | Client not connected | Make sure `joob-client connect` is running |
+| IP check shows your real IP | Browser not using proxy | Check proxy settings (Step 5) |
+| Very slow browsing | Normal — Drive API has latency | Try off-peak hours, or lower video quality |
+| "rate limited" in logs | Too many Drive API calls | Wait 1 min, reduces automatically |
+| Connection drops after hours | VPS restart or token issue | `systemctl restart joob` on VPS |
+| "failed to upload/download" | Drive API temporary error | Auto-retries, wait a few seconds |
+| Google is completely blocked | Network blocks ALL Google | Joob can't help — it needs Google access |
+
+---
+
+## How It Works (Technical)
+
+1. `joob-client` opens a SOCKS5 proxy on your PC at `127.0.0.1:1080`
+2. When your browser makes a request, the client encrypts it (AES-256-GCM)
+3. Encrypted data is uploaded as a file to Google Drive (`up_000001.bin`)
+4. `joob-exit` on the VPS polls Google Drive, sees the new file
+5. Exit downloads it, decrypts it, connects to the real website
+6. Response is encrypted and uploaded to Drive as `dn_000001.bin`
+7. Client downloads it, decrypts, sends back to your browser
+8. Files rotate at 10MB and old ones are cleaned up
+
+**What an observer sees:** HTTPS connections to Google IPs. Normal Google Drive traffic. The file contents are AES-256-GCM encrypted — unreadable even to Google.
 
 ---
 
 ## Security Notes
 
-- **The VPS sees your traffic** — it dials websites on your behalf, just like any VPN/proxy exit. Use HTTPS sites to keep content private from the VPS operator.
-- **Google sees Drive API calls** — file creates/reads/deletes from your Google account. The file contents are encrypted (AES-256-GCM), so Google cannot read the tunnel data.
-- **The `joob://` profile contains secrets** — your tunnel encryption key and OAuth refresh token. Treat it like a password. Don't share it publicly.
-- **The `exit.json` file contains secrets** — same as above. Keep it secure on your VPS.
-
----
-
-## Architecture Reference
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    CLIENT SIDE                           │
-│                                                          │
-│  Browser → SOCKS5/HTTP Proxy (127.0.0.1:1080/8080)      │
-│              ↓                                           │
-│  Mux: TCP connections → multiplexed frames               │
-│              ↓                                           │
-│  Sender: batch frames → encrypt (AES-256-GCM) → upload  │
-│              ↓                                           │
-│  Drive Upload: create/update up_NNN.bin files            │
-│              ↓                                           │
-│  TLS to Google IP (SNI=googleapis, looks like Drive sync)│
-│                                                          │
-├─────────────────── GOOGLE DRIVE ─────────────────────────┤
-│                                                          │
-│  Shared folder: joob-tunnel/                             │
-│    up_000001.bin, up_000002.bin, ...  (client → exit)    │
-│    dn_000001.bin, dn_000002.bin, ...  (exit → client)    │
-│                                                          │
-├─────────────────────────────────────────────────────────-─┤
-│                    EXIT SIDE (VPS)                        │
-│                                                          │
-│  Drive Download: Range GET on up_NNN.bin (new bytes only)│
-│              ↓                                           │
-│  Receiver: decrypt → parse frames → dispatch to mux      │
-│              ↓                                           │
-│  Mux: OPEN frame → TCP connect to target                 │
-│              ↓                                           │
-│  Target website ← TCP → response data                    │
-│              ↓                                           │
-│  Sender: batch response frames → encrypt → upload dn_*   │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
----
-
-## File Structure
-
-```
-~/                    (or C:\joob\ on Windows)
-├── joob-exit         (VPS binary)
-├── joob-client       (client binary)
-├── exit.json         (VPS config — contains secrets)
-├── exit_token.json   (VPS OAuth token — contains secrets)
-├── client.json       (client config — contains secrets)
-└── joob.log          (VPS log file, if using nohup)
-```
-
-Files in your Google Drive:
-```
-My Drive/
-└── joob-tunnel/
-    ├── up_000001.bin   (encrypted upstream data)
-    ├── up_000002.bin
-    ├── dn_000001.bin   (encrypted downstream data)
-    └── dn_000002.bin
-```
-
-These files rotate automatically. Run `joob-exit cleanup` periodically to remove old ones.
+- **Your VPS can see what websites you visit** (like any proxy/VPN). Use HTTPS sites.
+- **Google can see you're making Drive API calls** but cannot read the encrypted file contents.
+- **Your `joob://` profile and `client.json` contain secrets.** Don't share them publicly.
+- **The `exit.json` and `exit_token.json` on VPS contain secrets.** Secure your VPS.
+- **No domain or DNS is ever needed or used.** Zero DNS footprint.
