@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Joob Exit Node — one-line installer
-# Usage: curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | bash
 set -euo pipefail
 
 REPO="zakrad/joob"
