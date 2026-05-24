@@ -1,0 +1,29 @@
+[package]
+name = "joob-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "joob"
+path = "src/main.rs"
+
+[dependencies]
+joob-core = { path = "../joob-core" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde_json = "1"
+anyhow = "1"
+eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "persistence"] }
+egui = "0.31"
+image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.15"
+open = "5"
+arboard = "3"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "shellapi"] }
+
+[features]
+default = []

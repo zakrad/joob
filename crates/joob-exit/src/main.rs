@@ -1,5 +1,5 @@
 use clap::Parser;
-use joob_core::auth::{DeviceCodeFlow, OAuthConfig, TokenStore};
+use joob_core::auth::{DeviceCodeFlow, OAuthConfig, PkceFlow, TokenStore};
 use joob_core::config::{ClientConfig, ExitConfig, OAuthTokens, Profile};
 use joob_core::crypto::TunnelKey;
 use joob_core::drive::{DriveClient, FileRotator};
@@ -23,12 +23,15 @@ struct Cli {
 enum Commands {
     /// Interactive setup: OAuth login, create Drive folder, generate profile
     Setup {
-        /// Google OAuth client ID (optional, uses built-in default)
+        /// Google OAuth client ID
         #[arg(long)]
         client_id: Option<String>,
-        /// Google OAuth client secret
+        /// Google OAuth client secret (only needed for device-code flow)
         #[arg(long)]
         client_secret: Option<String>,
+        /// OAuth flow: "pkce" (default, Desktop app) or "device" (TV/Limited Input app)
+        #[arg(long, default_value = "pkce")]
+        oauth_flow: String,
         /// Google edge IP for domain fronting (client-side)
         #[arg(long, default_value = "216.239.38.120")]
         google_ip: String,
@@ -66,9 +69,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Setup {
             client_id,
             client_secret,
+            oauth_flow,
             google_ip,
         } => {
-            run_setup(client_id, client_secret, google_ip).await?;
+            run_setup(client_id, client_secret, &oauth_flow, google_ip).await?;
         }
         Commands::Run { config } => {
             let exit_config = ExitConfig::load_from_file(&config).map_err(boxerr)?;
@@ -90,22 +94,55 @@ async fn main() -> anyhow::Result<()> {
 async fn run_setup(
     client_id: Option<String>,
     client_secret: Option<String>,
+    oauth_flow: &str,
     google_ip: String,
 ) -> anyhow::Result<()> {
     println!("╔══════════════════════════════════════════╗");
     println!("║          JOOB EXIT SETUP                 ║");
     println!("╚══════════════════════════════════════════╝\n");
 
+    // Read client_id from stdin if not provided
+    let cid = match client_id {
+        Some(id) => id,
+        None => {
+            println!("Enter your Google OAuth Client ID:");
+            let mut buf = String::new();
+            std::io::stdin().read_line(&mut buf)?;
+            buf.trim().to_string()
+        }
+    };
+
+    if cid.is_empty() {
+        anyhow::bail!("Client ID is required. Create one at https://console.cloud.google.com/apis/credentials");
+    }
+
     let oauth_config = OAuthConfig {
-        client_id: client_id.unwrap_or_else(|| "PLACEHOLDER_CLIENT_ID".to_string()),
-        client_secret: client_secret.unwrap_or_else(|| "PLACEHOLDER_CLIENT_SECRET".to_string()),
+        client_id: cid,
+        client_secret: client_secret.clone(),
     };
 
     // Step 1: OAuth login
-    println!("Step 1/4: Google authentication...");
+    println!("Step 1/4: Google authentication ({} flow)...", oauth_flow);
     let http = FrontedClient::build_direct()?;
-    let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
-    let token = flow.authorize().await?;
+
+    let token = match oauth_flow {
+        "device" => {
+            if oauth_config.client_secret.is_none() {
+                anyhow::bail!("--client-secret is required for device-code flow. Use --oauth-flow pkce to skip it.");
+            }
+            let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
+            flow.authorize().await?
+        }
+        _ => {
+            // PKCE flow (default)
+            let flow = PkceFlow::new(
+                oauth_config.client_id.clone(),
+                oauth_config.client_secret.clone(),
+                http.clone(),
+            );
+            flow.authorize().await?
+        }
+    };
 
     // Save token
     let token_path = std::path::PathBuf::from("exit_token.json");
@@ -114,7 +151,11 @@ async fn run_setup(
 
     // Step 2: Create Drive folder
     println!("\nStep 2/4: Creating Drive folder...");
-    let drive = Arc::new(DriveClient::new(http, token_store.clone(), oauth_config.clone()));
+    let drive = Arc::new(DriveClient::new(
+        http,
+        token_store.clone(),
+        oauth_config.clone(),
+    ));
     let folder_id = drive.create_folder("joob-tunnel", None).await?;
     println!("  Folder ID: {}", folder_id);
 

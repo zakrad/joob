@@ -12,18 +12,20 @@ const DRIVE_FILE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
 const DEFAULT_CLIENT_ID: &str = "PLACEHOLDER_CLIENT_ID";
 const DEFAULT_CLIENT_SECRET: &str = "PLACEHOLDER_CLIENT_SECRET";
 
-/// OAuth client credentials for the device-code flow.
+/// OAuth client credentials.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     pub client_id: String,
-    pub client_secret: String,
+    /// Client secret — required for device-code flow, optional for PKCE.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_secret: Option<String>,
 }
 
 impl Default for OAuthConfig {
     fn default() -> Self {
         Self {
             client_id: DEFAULT_CLIENT_ID.to_string(),
-            client_secret: DEFAULT_CLIENT_SECRET.to_string(),
+            client_secret: Some(DEFAULT_CLIENT_SECRET.to_string()),
         }
     }
 }
@@ -137,15 +139,21 @@ impl DeviceCodeFlow {
                 return Err(AuthError::DeviceCodeExpired);
             }
 
+            let mut params = vec![
+                ("client_id", self.config.client_id.as_str()),
+                ("device_code", resp.device_code.as_str()),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+            ];
+            let secret_ref;
+            if let Some(ref s) = self.config.client_secret {
+                secret_ref = s.clone();
+                params.push(("client_secret", &secret_ref));
+            }
+            // Reborrow params for the form data
             let token_resp = self
                 .http
                 .post(GOOGLE_TOKEN_URL)
-                .form(&[
-                    ("client_id", self.config.client_id.as_str()),
-                    ("client_secret", self.config.client_secret.as_str()),
-                    ("device_code", resp.device_code.as_str()),
-                    ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                ])
+                .form(&params)
                 .send()
                 .await?
                 .json::<TokenResponse>()
@@ -191,15 +199,20 @@ impl DeviceCodeFlow {
 
     /// Refresh an expired access token using the refresh token.
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenData, AuthError> {
+        let mut params = vec![
+            ("client_id", self.config.client_id.as_str()),
+            ("refresh_token", refresh_token),
+            ("grant_type", "refresh_token"),
+        ];
+        let secret_ref;
+        if let Some(ref s) = self.config.client_secret {
+            secret_ref = s.clone();
+            params.push(("client_secret", &secret_ref));
+        }
         let resp = self
             .http
             .post(GOOGLE_TOKEN_URL)
-            .form(&[
-                ("client_id", self.config.client_id.as_str()),
-                ("client_secret", self.config.client_secret.as_str()),
-                ("refresh_token", refresh_token),
-                ("grant_type", "refresh_token"),
-            ])
+            .form(&params)
             .send()
             .await?;
 
