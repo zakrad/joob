@@ -33,9 +33,13 @@ impl ExitTunnel {
 
         let token_store = Arc::new(TokenStore::new(dirs_config_path("exit_token.json")));
 
+        // Always bootstrap from the config's refresh_token if we have no cached token
         if token_store.needs_refresh(0).await {
+            info!("Refreshing access token from config refresh_token...");
             let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
-            let token = flow.authorize().await?;
+            let token = flow
+                .refresh_token(&config.oauth.refresh_token)
+                .await?;
             token_store.store(token).await?;
         }
 
