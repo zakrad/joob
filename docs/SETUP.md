@@ -130,7 +130,7 @@ Requirements: Linux, 512MB RAM, internet access. That's it.
 
 After you get the VPS, you'll have an **IP address** and **SSH credentials**.
 
-### 3.2 — One-Line VPS Install
+### 3.2 — One-Line Install (does everything)
 
 SSH into your VPS:
 
@@ -138,13 +138,24 @@ SSH into your VPS:
 ssh root@YOUR_VPS_IP
 ```
 
-**Fully automated** (installs Rust, builds, sets up systemd auto-start):
+Run this single command:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
 ```
 
-**OR** do it manually — copy and run this entire block:
+It will:
+1. Ask for your **Google Client ID** and **Client Secret** (from Step 1)
+2. Install Rust and build Joob
+3. Authenticate with Google (shows a URL + code to approve)
+4. Set up systemd auto-start
+5. Start the exit node
+
+At the end it prints a `joob://...` profile string — **copy it** for the client.
+
+### 3.3 — Manual Install (alternative)
+
+If you prefer to do it step by step:
 
 ```bash
 # Install Rust + clone + build
@@ -154,22 +165,9 @@ git clone https://github.com/zakrad/joob.git ~/joob
 cd ~/joob
 cargo build --release
 cp target/release/joob-exit ~/joob-exit
-```
-
-**OR** if you already built on your local machine, just copy the binary:
-
-```bash
-# From your LOCAL machine (not the VPS):
-scp ~/joob/target/release/joob-exit root@YOUR_VPS_IP:~/joob-exit
-```
-
-### 3.3 — Run Setup
-
-On the VPS:
-
-```bash
 chmod +x ~/joob-exit
 
+# Run setup with your Google credentials
 ~/joob-exit setup \
   --client-id "PASTE_YOUR_CLIENT_ID_HERE" \
   --client-secret "PASTE_YOUR_CLIENT_SECRET_HERE"

@@ -56,17 +56,13 @@ Client (restricted network)           VPS Exit (free internet)
 SSH into any Linux VPS and run:
 
 ```bash
-# One-line install (installs Rust, builds, sets up systemd auto-start):
 curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
-
-# Run the setup wizard (authenticates with Google, creates Drive folder):
-~/joob-exit setup --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET"
-
-# Start the exit node:
-systemctl start joob
 ```
 
-The setup wizard will show a URL + code. Open the URL on any device, enter the code, and approve. After that it prints a `joob://...` profile string — **copy it**.
+It asks for your Google Client ID and Secret, then does everything automatically:
+installs Rust → builds → authenticates with Google → starts the service.
+
+When prompted, open the Google URL on any device, enter the code, and approve. The script prints a `joob://...` profile string — **copy it**.
 
 ### 2. Client Setup (your PC)
 

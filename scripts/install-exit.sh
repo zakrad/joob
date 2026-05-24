@@ -12,34 +12,55 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Ask for Google OAuth credentials upfront
+echo "You need a Google Cloud OAuth app (free)."
+echo "Guide: https://github.com/zakrad/joob/blob/master/docs/SETUP.md"
+echo ""
+read -rp "Google Client ID: " CLIENT_ID
+if [ -z "$CLIENT_ID" ]; then
+    echo "ERROR: Client ID is required."
+    exit 1
+fi
+read -rp "Google Client Secret: " CLIENT_SECRET
+if [ -z "$CLIENT_SECRET" ]; then
+    echo "ERROR: Client Secret is required."
+    exit 1
+fi
+echo ""
+
+# Install git if not present
+if ! command -v git &> /dev/null; then
+    echo "[1/6] Installing git..."
+    apt-get update -qq && apt-get install -y -qq git > /dev/null
+else
+    echo "[1/6] git already installed."
+fi
+
 # Install Rust if not present
 if ! command -v cargo &> /dev/null; then
-    echo "[1/5] Installing Rust..."
+    echo "[2/6] Installing Rust..."
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     source "$HOME/.cargo/env"
 else
-    echo "[1/5] Rust already installed."
+    echo "[2/6] Rust already installed."
 fi
 
 # Clone and build
 if [ ! -d "$HOME/joob" ]; then
-    echo "[2/5] Cloning Joob..."
+    echo "[3/6] Cloning Joob..."
     git clone https://github.com/zakrad/joob.git "$HOME/joob"
 else
-    echo "[2/5] Joob already cloned, pulling latest..."
+    echo "[3/6] Joob already cloned, pulling latest..."
     cd "$HOME/joob" && git pull
 fi
 
-echo "[3/5] Building (this takes ~60 seconds)..."
+echo "[4/6] Building (this takes ~2 minutes on first run)..."
 cd "$HOME/joob"
 cargo build --release --quiet 2>/dev/null
 cp target/release/joob-exit "$HOME/joob-exit"
 chmod +x "$HOME/joob-exit"
 
-echo "[4/5] Binary ready at ~/joob-exit"
-
-# Install systemd service
-echo "[5/5] Installing systemd service..."
+echo "[5/6] Installing systemd service..."
 cat > /etc/systemd/system/joob.service << EOF
 [Unit]
 Description=Joob Exit Node
@@ -60,18 +81,27 @@ EOF
 systemctl daemon-reload
 systemctl enable joob
 
+# Run setup with the credentials
+echo "[6/6] Running setup wizard..."
+echo ""
+"$HOME/joob-exit" setup --client-id "$CLIENT_ID" --client-secret "$CLIENT_SECRET"
+
+# Start the service
+echo ""
+echo "Starting joob exit node..."
+systemctl start joob
+
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║          INSTALL COMPLETE ✓              ║"
+echo "║          SETUP COMPLETE ✓                ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
-echo "║  Next: run the setup wizard:             ║"
+echo "║  Joob is running! Copy the joob://...    ║"
+echo "║  profile string above to your client.    ║"
 echo "║                                          ║"
-echo "║  ~/joob-exit setup \\                     ║"
-echo "║    --client-id \"YOUR_ID\" \\               ║"
-echo "║    --client-secret \"YOUR_SECRET\"          ║"
-echo "║                                          ║"
-echo "║  Then start:                             ║"
-echo "║    systemctl start joob                  ║"
+echo "║  Useful commands:                        ║"
+echo "║    systemctl status joob                 ║"
+echo "║    journalctl -u joob -f                 ║"
+echo "║    systemctl restart joob                ║"
 echo "║                                          ║"
 echo "╚══════════════════════════════════════════╝"
