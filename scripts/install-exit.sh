@@ -13,15 +13,16 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Ask for Google OAuth credentials upfront
+# Read from /dev/tty so it works even when piped from curl
 echo "You need a Google Cloud OAuth app (free)."
 echo "Guide: https://github.com/zakrad/joob/blob/master/docs/SETUP.md"
 echo ""
-read -rp "Google Client ID: " CLIENT_ID
+read -rp "Google Client ID: " CLIENT_ID < /dev/tty
 if [ -z "$CLIENT_ID" ]; then
     echo "ERROR: Client ID is required."
     exit 1
 fi
-read -rp "Google Client Secret: " CLIENT_SECRET
+read -rp "Google Client Secret: " CLIENT_SECRET < /dev/tty
 if [ -z "$CLIENT_SECRET" ]; then
     echo "ERROR: Client Secret is required."
     exit 1
