@@ -138,7 +138,13 @@ SSH into your VPS:
 ssh root@YOUR_VPS_IP
 ```
 
-Then copy and run this entire block:
+**Fully automated** (installs Rust, builds, sets up systemd auto-start):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install-exit.sh | sudo bash
+```
+
+**OR** do it manually — copy and run this entire block:
 
 ```bash
 # Install Rust + clone + build
