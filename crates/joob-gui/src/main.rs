@@ -29,11 +29,12 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone)]
 enum ConnectionState {
     Disconnected,
     Connecting,
     Connected,
+    Failed(String),
 }
 
 struct JoobApp {
@@ -138,7 +139,7 @@ impl JoobApp {
                 }
                 Err(e) => {
                     tracing::error!("Tunnel error: {}", e);
-                    let _ = tx.send(ConnectionState::Disconnected);
+                    let _ = tx.send(ConnectionState::Failed(e.to_string()));
                 }
             }
         });
@@ -168,10 +169,13 @@ impl eframe::App for JoobApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Check for state updates from tunnel task
         if self.state_rx.has_changed().unwrap_or(false) {
-            self.state = *self.state_rx.borrow_and_update();
-            match self.state {
+            let new_state = self.state_rx.borrow_and_update().clone();
+            match &new_state {
                 ConnectionState::Connected => {
                     self.status_msg = String::from("Connected ✓");
+                }
+                ConnectionState::Failed(err) => {
+                    self.status_msg = format!("Error: {}", err);
                 }
                 ConnectionState::Disconnected => {
                     if self.status_msg == "Connecting..." {
@@ -182,6 +186,7 @@ impl eframe::App for JoobApp {
                     self.status_msg = String::from("Connecting...");
                 }
             }
+            self.state = new_state;
         }
 
         // Request repaint periodically to check state updates
@@ -202,10 +207,11 @@ impl eframe::App for JoobApp {
                 ui.add_space(20.0);
 
                 // Status indicator
-                let (color, label) = match self.state {
-                    ConnectionState::Disconnected => (egui::Color32::from_rgb(200, 60, 60), "● Disconnected"),
-                    ConnectionState::Connecting => (egui::Color32::from_rgb(200, 180, 40), "◉ Connecting..."),
-                    ConnectionState::Connected => (egui::Color32::from_rgb(40, 200, 80), "● Connected"),
+                let (color, label) = match &self.state {
+                    ConnectionState::Disconnected => (egui::Color32::from_rgb(200, 60, 60), "● Disconnected".to_string()),
+                    ConnectionState::Connecting => (egui::Color32::from_rgb(200, 180, 40), "◉ Connecting...".to_string()),
+                    ConnectionState::Connected => (egui::Color32::from_rgb(40, 200, 80), "● Connected".to_string()),
+                    ConnectionState::Failed(_) => (egui::Color32::from_rgb(200, 60, 60), "● Error".to_string()),
                 };
                 ui.label(egui::RichText::new(label).color(color).size(18.0));
                 ui.add_space(16.0);
@@ -266,9 +272,9 @@ impl eframe::App for JoobApp {
 
             // Connect / Disconnect button
             ui.vertical_centered(|ui| {
-                let is_connected = self.state != ConnectionState::Disconnected;
-                let button_text = if is_connected { "Disconnect" } else { "Connect" };
-                let button_color = if is_connected {
+                let is_active = matches!(self.state, ConnectionState::Connecting | ConnectionState::Connected);
+                let button_text = if is_active { "Disconnect" } else { "Connect" };
+                let button_color = if is_active {
                     egui::Color32::from_rgb(200, 60, 60)
                 } else {
                     egui::Color32::from_rgb(40, 140, 200)
@@ -283,9 +289,9 @@ impl eframe::App for JoobApp {
                 .fill(button_color)
                 .corner_radius(8.0);
 
-                let enabled = self.state != ConnectionState::Connecting;
+                let enabled = !matches!(self.state, ConnectionState::Connecting);
                 if ui.add_enabled(enabled, button).clicked() {
-                    if is_connected {
+                    if is_active {
                         self.disconnect();
                     } else {
                         self.connect();
@@ -323,10 +329,18 @@ impl eframe::App for JoobApp {
                 ui.add_space(4.0);
             }
 
-            ui.label(
-                egui::RichText::new(&self.status_msg)
-                    .color(egui::Color32::GRAY)
-                    .size(12.0),
+            let msg_color = if self.status_msg.starts_with("Error:") {
+                egui::Color32::from_rgb(255, 100, 100)
+            } else {
+                egui::Color32::GRAY
+            };
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(&self.status_msg)
+                        .color(msg_color)
+                        .size(12.0),
+                )
+                .wrap(),
             );
         });
     }
