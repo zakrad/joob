@@ -98,7 +98,7 @@ Buy the cheapest Linux VPS you can find. Any provider works:
 
 Requirements: Linux, 512MB RAM, internet access. That's it.
 
-### 2.2 — One-Line Install
+### 2.2 — One-Line Install + Setup
 
 SSH into your VPS and run:
 
@@ -106,29 +106,15 @@ SSH into your VPS and run:
 curl -sSL https://raw.githubusercontent.com/zakrad/joob/master/scripts/install.sh | sudo bash
 ```
 
-This downloads a pre-built binary (~30 seconds). **No Rust, no compilation, no build tools.**
-
-### 2.3 — Run Setup
-
-```bash
-cd ~/joob
-joob-server setup
-```
-
-It will:
-1. Ask for your **Client ID** (from Step 1)
-2. Print a Google authorization URL
-3. You open the URL in any browser (phone, other PC — anything)
-4. Authorize the app, then paste the redirected URL back into the terminal
-5. Create a Drive folder and generate config
+This single command will:
+1. Download a pre-built binary (~30 seconds, no Rust/compilation needed)
+2. Install the systemd service
+3. Ask for your **Client ID** (from Step 1)
+4. Print a Google authorization URL — open it in any browser (phone, other PC — anything)
+5. You authorize the app, then paste the redirected URL back into the terminal
+6. Create a Drive folder, generate config, and **start the server automatically**
 
 At the end it prints a `joob://...` profile string — **copy it**.
-
-### 2.4 — Start the Exit Node
-
-```bash
-systemctl start joob
-```
 
 Check it's running:
 ```bash
