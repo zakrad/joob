@@ -82,7 +82,7 @@ systemctl start joob
 
 #### Windows (GUI)
 
-Download `joob-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases).
+Download `joob-gui-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases).
 
 Run it, paste the `joob://...` profile, click **Connect**.
 
@@ -164,8 +164,8 @@ Pre-built binaries for every release:
 | Linux ARM64 | `joob-server-linux-arm64` | Server for ARM VPS (Oracle, RPi) |
 | Linux x64 | `joob-client-linux-amd64` | CLI client |
 | Linux ARM64 | `joob-client-linux-arm64` | CLI client |
-| Windows x64 | `joob-windows-amd64.exe` | Desktop GUI app |
-| Windows x64 | `joob-client-windows-amd64.exe` | CLI client |
+| Windows x64 | `joob-gui-windows-amd64.exe` | Desktop GUI app |
+| Windows x64 | `joob-cli-windows-amd64.exe` | CLI client |
 
 Download from [Releases](https://github.com/zakrad/joob/releases).
 

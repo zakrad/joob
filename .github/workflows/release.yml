@@ -68,8 +68,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp target/release/joob-client.exe dist/joob-client-windows-amd64.exe
-          cp target/release/joob.exe dist/joob-windows-amd64.exe
+          cp target/release/joob-client.exe dist/joob-cli-windows-amd64.exe
+          cp target/release/joob.exe dist/joob-gui-windows-amd64.exe
 
       - uses: actions/upload-artifact@v4
         with:
@@ -99,6 +99,6 @@ jobs:
             dist/joob-server-linux-arm64
             dist/joob-client-linux-amd64
             dist/joob-client-linux-arm64
-            dist/joob-client-windows-amd64.exe
-            dist/joob-windows-amd64.exe
+            dist/joob-cli-windows-amd64.exe
+            dist/joob-gui-windows-amd64.exe
             dist/SHA256SUMS

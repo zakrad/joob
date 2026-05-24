@@ -143,7 +143,7 @@ systemctl status joob
 
 ### Windows (GUI — easiest)
 
-1. Download `joob-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases)
+1. Download `joob-gui-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases)
 2. Run it
 3. Paste the `joob://...` profile string
 4. Click **Import Profile**
@@ -151,17 +151,17 @@ systemctl status joob
 
 ### Windows (CLI)
 
-1. Download `joob-client-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases)
+1. Download `joob-cli-windows-amd64.exe` from [Releases](https://github.com/zakrad/joob/releases)
 2. Open PowerShell:
 
 ```powershell
 cd C:\Users\YOU\Downloads
 
 # Save the profile:
-.\joob-client-windows-amd64.exe import --profile "joob://..." --output client.json
+.\joob-cli-windows-amd64.exe import --profile "joob://..." --output client.json
 
 # Connect:
-.\joob-client-windows-amd64.exe connect --config client.json
+.\joob-cli-windows-amd64.exe connect --config client.json
 ```
 
 ### macOS / Linux (CLI)
