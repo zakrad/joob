@@ -4,7 +4,14 @@
 set -euo pipefail
 
 REPO="zakrad/joob"
-BINARY="joob-server-linux-amd64"
+
+# Auto-detect architecture
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64|amd64)  BINARY="joob-server-linux-amd64" ;;
+    aarch64|arm64) BINARY="joob-server-linux-arm64" ;;
+    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+esac
 INSTALL_DIR="/usr/local/bin"
 SERVICE_NAME="joob"
 WORK_DIR="$HOME/joob"
