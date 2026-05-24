@@ -20,7 +20,7 @@ jobs:
             runner: ubuntu-22.04
             suffix: linux-amd64
           - target: aarch64-unknown-linux-musl
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04-arm
             suffix: linux-arm64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -32,24 +32,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install musl tools
-        run: |
-          sudo apt-get update
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            sudo apt-get install -y musl-tools
-          else
-            sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
-            # Install aarch64 musl cross-compiler
-            sudo apt-get install -y wget
-            wget -q https://musl.cc/aarch64-linux-musl-cross.tgz
-            tar xzf aarch64-linux-musl-cross.tgz
-            echo "$PWD/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
-          fi
-
-      - name: Configure cross-compilation
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: |
-          mkdir -p .cargo
-          printf '[target.aarch64-unknown-linux-musl]\nlinker = "aarch64-linux-musl-gcc"\n' >> .cargo/config.toml
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build joob-server
         run: cargo build --release -p joob-server --target ${{ matrix.target }}
