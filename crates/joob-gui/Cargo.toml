@@ -12,7 +12,7 @@ path = "src/main.rs"
 joob-core = { path = "../joob-core" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 serde_json = "1"
 anyhow = "1"
 eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "persistence"] }

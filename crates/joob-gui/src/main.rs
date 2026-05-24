@@ -3,15 +3,84 @@
 use eframe::egui;
 use joob_core::config::{ClientConfig, Profile};
 use joob_core::tunnel::ClientTunnel;
-use std::sync::Arc;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Layer;
+
+/// Ring buffer for GUI-visible log messages.
+const MAX_LOG_LINES: usize = 100;
+type LogBuffer = Arc<Mutex<VecDeque<String>>>;
+
+/// A tracing layer that captures WARN and ERROR messages into a shared buffer.
+struct GuiLogLayer {
+    buffer: LogBuffer,
+}
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for GuiLogLayer {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        use tracing::Level;
+        let meta = event.metadata();
+        if *meta.level() > Level::WARN {
+            return; // only capture WARN and ERROR
+        }
+
+        // Extract the message
+        let mut visitor = MessageVisitor(String::new());
+        event.record(&mut visitor);
+
+        let line = format!("[{}] {}", meta.level(), visitor.0);
+        if let Ok(mut buf) = self.buffer.lock() {
+            if buf.len() >= MAX_LOG_LINES {
+                buf.pop_front();
+            }
+            buf.push_back(line);
+        }
+    }
+}
+
+struct MessageVisitor(String);
+
+impl tracing::field::Visit for MessageVisitor {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            self.0 = format!("{:?}", value);
+        } else if !self.0.is_empty() {
+            self.0 += &format!(" {}={:?}", field.name(), value);
+        }
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "message" {
+            self.0 = value.to_string();
+        } else if !self.0.is_empty() {
+            self.0 += &format!(" {}={}", field.name(), value);
+        }
+    }
+}
 
 fn main() -> eframe::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
+    let log_buffer: LogBuffer = Arc::new(Mutex::new(VecDeque::new()));
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "info".into()),
-        )
+        );
+
+    let gui_layer = GuiLogLayer {
+        buffer: Arc::clone(&log_buffer),
+    };
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(gui_layer)
         .init();
 
     let options = eframe::NativeOptions {
@@ -25,7 +94,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Joob",
         options,
-        Box::new(|cc| Ok(Box::new(JoobApp::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(JoobApp::new(cc, log_buffer)))),
     )
 }
 
@@ -51,10 +120,13 @@ struct JoobApp {
     runtime: Arc<tokio::runtime::Runtime>,
     // Handle to abort the tunnel
     tunnel_handle: Option<tokio::task::JoinHandle<()>>,
+    // Log buffer for GUI display
+    log_buffer: LogBuffer,
+    show_logs: bool,
 }
 
 impl JoobApp {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>, log_buffer: LogBuffer) -> Self {
         let (state_tx, state_rx) = watch::channel(ConnectionState::Disconnected);
 
         let runtime = Arc::new(
@@ -85,6 +157,8 @@ impl JoobApp {
             state_tx,
             runtime,
             tunnel_handle: None,
+            log_buffer,
+            show_logs: false,
         }
     }
 
@@ -133,9 +207,15 @@ impl JoobApp {
         let handle = self.runtime.spawn(async move {
             let _ = tx.send(ConnectionState::Connecting);
 
-            match ClientTunnel::start(config).await {
+            let tx_ready = tx.clone();
+            let on_ready = move || {
+                let _ = tx_ready.send(ConnectionState::Connected);
+            };
+
+            match ClientTunnel::start_with_callback(config, Some(on_ready)).await {
                 Ok(()) => {
-                    let _ = tx.send(ConnectionState::Connected);
+                    // Normal shutdown (ctrl+c or abort)
+                    let _ = tx.send(ConnectionState::Disconnected);
                 }
                 Err(e) => {
                     tracing::error!("Tunnel error: {}", e);
@@ -342,6 +422,51 @@ impl eframe::App for JoobApp {
                 )
                 .wrap(),
             );
+
+            ui.add_space(8.0);
+
+            // Log panel toggle
+            if ui
+                .selectable_label(self.show_logs, "Show Logs")
+                .clicked()
+            {
+                self.show_logs = !self.show_logs;
+            }
+
+            if self.show_logs {
+                ui.separator();
+                let logs = self
+                    .log_buffer
+                    .lock()
+                    .map(|buf| buf.iter().cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+
+                egui::ScrollArea::vertical()
+                    .max_height(160.0)
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        for line in &logs {
+                            let color = if line.starts_with("[ERROR]") {
+                                egui::Color32::from_rgb(255, 100, 100)
+                            } else {
+                                egui::Color32::from_rgb(255, 200, 60)
+                            };
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(line).color(color).size(11.0).monospace(),
+                                )
+                                .wrap(),
+                            );
+                        }
+                        if logs.is_empty() {
+                            ui.label(
+                                egui::RichText::new("No warnings or errors")
+                                    .color(egui::Color32::DARK_GRAY)
+                                    .size(11.0),
+                            );
+                        }
+                    });
+            }
         });
     }
 }
