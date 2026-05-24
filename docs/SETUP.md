@@ -130,24 +130,31 @@ Requirements: Linux, 512MB RAM, internet access. That's it.
 
 After you get the VPS, you'll have an **IP address** and **SSH credentials**.
 
-### 3.2 — Copy the Binary to Your VPS
+### 3.2 — One-Line VPS Install
 
-Build on your local machine first (Step 2), then copy the binary:
+SSH into your VPS:
+
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+Then copy and run this entire block:
+
+```bash
+# Install Rust + clone + build
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source ~/.cargo/env
+git clone https://github.com/zakrad/joob.git ~/joob
+cd ~/joob
+cargo build --release
+cp target/release/joob-exit ~/joob-exit
+```
+
+**OR** if you already built on your local machine, just copy the binary:
 
 ```bash
 # From your LOCAL machine (not the VPS):
 scp ~/joob/target/release/joob-exit root@YOUR_VPS_IP:~/joob-exit
-```
-
-**OR** build directly on the VPS if you prefer:
-
-```bash
-ssh root@YOUR_VPS_IP
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source ~/.cargo/env
-# copy the joob source to the VPS, then:
-cd ~/joob && cargo build --release
-cp target/release/joob-exit ~/joob-exit
 ```
 
 ### 3.3 — Run Setup
