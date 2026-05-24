@@ -1,0 +1,135 @@
+use crate::auth::{DeviceCodeFlow, OAuthConfig, TokenStore};
+use crate::config::ClientConfig;
+use crate::crypto::{Cipher, TunnelKey};
+use crate::drive::{DriveClient, Downloader, QuotaTracker, Uploader};
+use crate::fronting::{FrontedClient, FrontingConfig};
+use crate::mux::Mux;
+use crate::proxy::{HttpProxy, Socks5Server};
+use crate::transport::Pipe;
+use base64::Engine;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
+use tracing::{error, info};
+
+/// Client-side tunnel. Runs SOCKS5/HTTP proxy, multiplexes traffic through
+/// Google Drive via domain-fronted HTTPS.
+pub struct ClientTunnel;
+
+impl ClientTunnel {
+    pub async fn start(
+        config: ClientConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!("Starting Joob client tunnel...");
+
+        // 1. Build fronted HTTP client
+        let google_ip = config
+            .google_ip
+            .parse::<IpAddr>()
+            .unwrap_or(IpAddr::V4(Ipv4Addr::new(216, 239, 38, 120)));
+        let fronting_config = FrontingConfig {
+            google_ip,
+            ..Default::default()
+        };
+        let http = FrontedClient::build(&fronting_config)?;
+
+        // 2. Set up auth
+        let oauth_config = OAuthConfig {
+            client_id: config.oauth.client_id.clone(),
+            client_secret: config.oauth.client_secret.clone(),
+        };
+        let token_store = Arc::new(TokenStore::new(dirs_config_path("client_token.json")));
+
+        // Check if we need to login
+        if token_store.needs_refresh(0).await {
+            let flow = DeviceCodeFlow::new(oauth_config.clone(), http.clone());
+            let token = flow.authorize().await?;
+            token_store.store(token).await?;
+        }
+
+        // 3. Create Drive client
+        let drive = Arc::new(DriveClient::new(http, token_store, oauth_config));
+
+        // 4. Create tunnel secret + ciphers
+        let key_bytes = base64::engine::general_purpose::STANDARD
+            .decode(&config.tunnel_secret)
+            .map_err(|e| format!("invalid tunnel secret: {}", e))?;
+        let key_arr: [u8; 32] = key_bytes
+            .try_into()
+            .map_err(|_| "tunnel secret must be 32 bytes")?;
+        let tunnel_key = TunnelKey::from_bytes(key_arr);
+
+        // Client sends on "up" (upstream), receives on "dn" (downstream)
+        let send_cipher = Arc::new(Cipher::new(&tunnel_key, [0x00, 0x00, 0x00, 0x01]));
+        let recv_cipher = Arc::new(Cipher::new(&tunnel_key, [0x00, 0x00, 0x00, 0x02]));
+
+        // 5. Create uploader + downloader
+        let uploader = Arc::new(Uploader::new(
+            Arc::clone(&drive),
+            config.drive_folder_id.clone(),
+            "up".to_string(),
+        ));
+        let downloader = Arc::new(Downloader::new(
+            Arc::clone(&drive),
+            config.drive_folder_id.clone(),
+            "dn".to_string(),
+        ));
+
+        // 6. Create mux
+        let mux = Arc::new(Mux::new());
+
+        // 7. Create quota tracker
+        let quota = Arc::new(QuotaTracker::new());
+
+        // 8. Start transport pipe
+        let _pipe = Pipe::start(
+            Arc::clone(&mux),
+            uploader,
+            downloader,
+            send_cipher,
+            recv_cipher,
+            quota,
+        );
+
+        // 9. Start proxy servers
+        let socks_addr: SocketAddr = format!("127.0.0.1:{}", config.socks_port).parse()?;
+        let http_addr: SocketAddr = format!("127.0.0.1:{}", config.http_port).parse()?;
+
+        let socks5 = Socks5Server::new(Arc::clone(&mux));
+        let http_proxy = HttpProxy::new(Arc::clone(&mux));
+
+        info!(socks = %socks_addr, http = %http_addr, "proxy servers starting");
+
+        let socks_handle = tokio::spawn(async move {
+            if let Err(e) = socks5.run(socks_addr).await {
+                error!(error = %e, "SOCKS5 server error");
+            }
+        });
+
+        let http_handle = tokio::spawn(async move {
+            if let Err(e) = http_proxy.run(http_addr).await {
+                error!(error = %e, "HTTP proxy error");
+            }
+        });
+
+        info!("Joob client tunnel running. Press Ctrl+C to stop.");
+
+        // Wait for shutdown
+        tokio::signal::ctrl_c().await?;
+        info!("Shutting down...");
+
+        socks_handle.abort();
+        http_handle.abort();
+
+        Ok(())
+    }
+}
+
+fn dirs_config_path(filename: &str) -> std::path::PathBuf {
+    let mut path = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    path.push(".config");
+    path.push("joob");
+    path.push(filename);
+    path
+}
